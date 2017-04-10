@@ -32,7 +32,8 @@ autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
 call plug#begin('~/.vim/plugged')
 
 " Make sure you use single quotes
-
+"Plug 'justmao945/vim-clang'
+Plug 'vim-scripts/c.vim'
 " Shorthand notation; fetches https://github.com/junegunn/vim-easy-align
 "Plug 'junegunn/vim-easy-align'
 
