@@ -5,7 +5,7 @@ export PS1="\[\e[32m\]\u@\h:\W\\$\[\e[m\]"
 [ -x /usr/bin/lesspipe.sh ] && eval "$(SHELL=/bin/sh lesspipe.sh)"
 export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$HOME/src
-export VIRTUALENVWRAPPER_SCRIPT=virtualenvwrapper.sh
+export VIRTUALENVWRAPPER_SCRIPT=.dotfiles/virtualenvwrapper.sh
 [ -f $VIRTUALENVWRAPPER_SCRIPT ] && source $VIRTUALENVWRAPPER_SCRIPT
 export PCLINT_PATH=$HOME/bin/pclint9/
 export GOPATH=$HOME
