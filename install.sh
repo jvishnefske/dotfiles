@@ -15,6 +15,7 @@ function safe_link(){
   fi
   ln --symbolic --interactive $target $link
 }
+safe_link .profile
 safe_link .bashrc
 safe_link .vimrc
 # if vim is installed, then install vim-plug

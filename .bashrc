@@ -1,9 +1,8 @@
-export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:/usr/bin:/usr/sbin:$HOME/bin/node-current/bin:/bin:/usr/local/bin:$HOME/.local/bin
+#export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:/usr/bin:/usr/sbin:$HOME/bin/node-current/bin:/bin:/usr/local/bin:$HOME/.local/bin
 . /etc/profile.d/bash_completion.sh
 #export PS1="\[\e[32m\][\u@\h:\W]\\$\[\e[m\]"
 export PS1="\[\e[32m\]\u@\h:\W\\$\[\e[m\]"
 [ -x /usr/bin/lesspipe.sh ] && eval "$(SHELL=/bin/sh lesspipe.sh)"
-[ -x $HOME/.dotfiles/auto-nfs.sh ] && $HOME/.dotfiles/auto-nfs.sh &
 export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$HOME/src
 export VIRTUALENVWRAPPER_SCRIPT=.dotfiles/virtualenvwrapper.sh
