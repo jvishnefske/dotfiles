@@ -46,7 +46,7 @@ Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
 " On-demand loading
 Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
 Plug 'tpope/vim-fireplace', { 'for': 'clojure' }
-
+Plug 'pangloss/vim-javascript'
 " Using a non-master branch
 "Plug 'rdnetto/YCM-Generator', { 'branch': 'stable' }
 Plug 'Shougo/neocomplete.vim'
