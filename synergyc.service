@@ -1,0 +1,9 @@
+[Unit]
+Description=Synergy client
+After=network.target
+
+[Service]
+ExecStart=/home/j/bin/synergyc --no-daemon baker.lan
+
+[Install]
+WantedBy=graphical.target

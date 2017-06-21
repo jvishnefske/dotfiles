@@ -1,0 +1,1 @@
+//10.1.0.1/share /mnt/nfs cifs rw,credentials=/home/j/.config/cifs.credentials,users,noauto 0 0

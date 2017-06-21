@@ -1,0 +1,18 @@
+[Unit]
+Description=Synergy server daemon
+Documentation=man:synergys(1)
+After=display-manager.service
+#Wants=
+
+[Service]
+Type=simple
+#PIDFile=/var/run/synergys.pid
+#EnvironmentFile=-/etc/sysconfig/sshd
+ExecStart=/usr/bin/synergys $OPTIONS --no-daemon
+#ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=4s
+
+[Install]
+WantedBy=graphical.target
