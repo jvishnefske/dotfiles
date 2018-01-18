@@ -14,3 +14,6 @@ alias rm='rm -i'
 alias mv='mv -i'
 alias ls='ls --color'
 
+
+# added by Anaconda3 4.4.0 installer
+export PATH="/home/j/bin/anaconda3/bin:$PATH"
