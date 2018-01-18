@@ -1,5 +1,5 @@
 "set nocompatable
-
+source ~/.dotfiles/ultimate.vim
 autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
 let g:acp_enableAtStartup = 0
 " Use neocomplete.
@@ -25,7 +25,6 @@ inoremap <expr><C-l>     neocomplete#complete_common_string()
 "autocmd FileType javascript setlocal omnifunc=javascriptcomplete#CompleteJS
 autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
 "autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
-
 
 
 " Specify a directory for plugins (for Neovim: ~/.local/share/nvim/plugged)
