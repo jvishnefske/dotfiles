@@ -3,7 +3,8 @@
 
 function! BuildYCM(info)
     if a:info.status == 'installed' || a:info.force
-      !./install.py --clangd-completer
+	" only use --all if jdk8 ,node/npm,, no xbuild, mono are installed
+      	    !./install.py --clangd-completer
     endif
 endfunction
 
