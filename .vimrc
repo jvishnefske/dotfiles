@@ -1,5 +1,18 @@
 "set nocompatable
-source ~/.dotfiles/ultimate.vim
+"source ~/.dotfiles/ultimate.vim
+
+function! BuildYCM(info)
+    if a:info.status == 'installed' || a:info.force
+      !./install.py --clangd-completer
+    endif
+endfunction
+
+" Trigger configuration. Do not use <tab> if you use YouCompleteMe.
+ let g:UltiSnipsExpandTrigger="<C-Space>"
+" let g:UltiSnipsExpandTrigger="<C-Enter>"
+ let g:UltiSnipsJumpForwardTrigger="<C-f>"
+ let g:UltiSnipsJumpBackwardTrigger="<C-b>"
+
 "autocmd FileType css setlocal omnifunc=csscomplete#CompleteCSS
 "autocmd FileType html,markdown setlocal omnifunc=htmlcomplete#CompleteTags
 "autocmd FileType javascript setlocal omnifunc=javascriptcomplete#CompleteJS
@@ -21,7 +34,7 @@ Plug 'vim-syntastic/syntastic'
 
 " Multiple Plug commands can be written in a single line using | separators
 Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
-Plug 'davidhalter/jedi'
+"Plug 'davidhalter/jedi'
 " On-demand loading
 Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
 "Plug 'tpope/vim-fireplace', { 'for': 'clojure' }
