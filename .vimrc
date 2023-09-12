@@ -102,7 +102,8 @@ endfunction
 " Specify a directory for plugins (for Neovim: ~/.local/share/nvim/plugged) 
 call plug#begin('~/.vim/plugged') 
 " support ubunu18.04 
-Plug 'ycm-core/YouCompleteMe', {'commit': '93956d747abd9f1ac438c219eb27e4ecd94cdb82'} 
+Plug 'ycm-core/YouCompleteMe'
+", {'commit': '93956d747abd9f1ac438c219eb27e4ecd94cdb82'} 
 "Plug 'tom-doerr/vim_codex' 
 " Make sure you use single quotes 
 "Plug 'vim-syntastic/syntastic' 
