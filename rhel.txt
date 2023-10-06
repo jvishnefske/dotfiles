@@ -1,0 +1,5 @@
+sudo dnf group install "Developemnt Tools"
+sudo dnf install python3-devel
+sudo dnf install cmake npm java-17
+sudo dnf install go cargo
+sudo dnf install vim 

@@ -1,5 +1,5 @@
-" Specify a directory for plugins (for Neovim: ~/.local/share/nvim/plugged) 
-call plug#begin('~/.vim/plugged') 
+" Specify a directory for plugins (for Neovim: ~/.local/share/nvim/plugged)
+call plug#begin('~/.vim/plugged')
 " Async-vim is only here because it is required by vim-lsp
 Plug 'prabirshrestha/async.vim'
 " Languages server protocol connection
@@ -17,31 +17,31 @@ Plug 'prabirshrestha/asyncomplete-ultisnips.vim'
 " Autocomplete source - ctags
 Plug 'prabirshrestha/asyncomplete-tags.vim'
 "Plug 'ycm-core/YouCompleteMe'
-"Plug 'tom-doerr/vim_codex' 
-"Plug 'vim-syntastic/syntastic' 
-" Shorthand notation; fetches https://github.com/junegunn/vim-easy-align 
-"Plug 'junegunn/vim-easy-align' 
-" Any valid git URL is allowed 
-"Plug 'https://github.com/junegunn/vim-github-dashboard.git' 
-" Multiple Plug commands can be written in a single line using | separators 
-Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets' 
-"Plug 'davidhalter/jedi' 
-" On-demand loading 
-Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' } 
-"Plug 'tpope/vim-fireplace', { 'for': 'clojure' } 
-"Plug 'pangloss/vim-javascript' 
-" Using a non-master branch 
-"Plug 'rdnetto/YCM-Generator', { 'branch': 'stable' } 
-"Plug 'Shougo/neocomplete.vim' 
-"Plug 'mjbrownie/pythoncomplete.vim' 
-" Using a tagged release; wildcard allowed (requires git 1.9.2 or above) 
-"Plug 'fatih/vim-go', { 'tag': '*' } 
-Plug 'tpope/vim-fugitive' 
-" Plugin options 
-"Plug 'nsf/gocode', { 'tag': 'v.20150303', 'rtp': 'vim' } 
-" Plugin outside ~/.vim/plugged with post-update hook 
-"Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' } 
-" Initialize plugin system 
+"Plug 'tom-doerr/vim_codex'
+"Plug 'vim-syntastic/syntastic'
+" Shorthand notation; fetches https://github.com/junegunn/vim-easy-align
+"Plug 'junegunn/vim-easy-align'
+" Any valid git URL is allowed
+"Plug 'https://github.com/junegunn/vim-github-dashboard.git'
+" Multiple Plug commands can be written in a single line using | separators
+Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
+"Plug 'davidhalter/jedi'
+" On-demand loading
+Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
+"Plug 'tpope/vim-fireplace', { 'for': 'clojure' }
+"Plug 'pangloss/vim-javascript'
+" Using a non-master branch
+"Plug 'rdnetto/YCM-Generator', { 'branch': 'stable' }
+"Plug 'Shougo/neocomplete.vim'
+"Plug 'mjbrownie/pythoncomplete.vim'
+" Using a tagged release; wildcard allowed (requires git 1.9.2 or above)
+"Plug 'fatih/vim-go', { 'tag': '*' }
+Plug 'tpope/vim-fugitive'
+" Plugin options
+"Plug 'nsf/gocode', { 'tag': 'v.20150303', 'rtp': 'vim' }
+" Plugin outside ~/.vim/plugged with post-update hook
+"Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+" Initialize plugin system
 call plug#end()
 
 " Vim will load $VIMRUNTIME/defaults.vim if the user does not have a vimrc.
@@ -51,7 +51,7 @@ call plug#end()
 " defaults.vim from being loaded.
 " let g:skip_defaults_vim = 1
 
-" have Vim jump to the last position 
+" have Vim jump to the last position
 au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
 " The following are commented out as they cause vim to behave a lot
 " differently from regular Vi. They are highly recommended though.
@@ -79,7 +79,7 @@ set expandtab
 set foldmethod=syntax
 " Turn click-me warnings about swapfiles into discreet little messages
 set shortmess+=A
-"set foldtext=getline(v\:foldstart),foldtext() 
+"set foldtext=getline(v\:foldstart),foldtext()
 " enable Plugins on newer vim only if not found already
 let s:is_neovim = has( 'nvim' )
 
