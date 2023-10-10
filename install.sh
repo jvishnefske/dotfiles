@@ -19,6 +19,7 @@ safe_link .profile
 safe_link .bashrc
 safe_link .vimrc
 safe_link .gitconfig
+safe_link .zshrc
 # if vim is installed, then install vim-plug
 if $(which vim > /dev/null)
 then
