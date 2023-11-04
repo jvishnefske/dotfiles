@@ -19,6 +19,8 @@ safe_link .profile
 safe_link .bashrc
 safe_link .vimrc
 safe_link .gitconfig
+safe_link .zshrc
+ln --symbolic --interactive ohmyzsh $HOME/.oh-my-zsh/
 # if vim is installed, then install vim-plug
 if $(which vim > /dev/null)
 then
