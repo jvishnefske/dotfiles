@@ -24,7 +24,7 @@ Plug 'prabirshrestha/asyncomplete-tags.vim'
 " Any valid git URL is allowed
 "Plug 'https://github.com/junegunn/vim-github-dashboard.git'
 " Multiple Plug commands can be written in a single line using | separators
-Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
+"Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
 "Plug 'davidhalter/jedi'
 " On-demand loading
 Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
@@ -57,9 +57,11 @@ au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g
 " differently from regular Vi. They are highly recommended though.
 filetype plugin indent on " indentation rules and plugins according to the detected filetype.
 set termguicolors       " Truecolor in terminal
+colorscheme desert
+highlight Pmenu ctermfg=15 ctermbg=0 guifg=#eeeeff guibg=#111111
 syntax on               " enable syntax highlighting by default.
 set nocompatible
-set background=dark
+"set background=dark
 set showcmd		" Show (partial) command in status line.
 set showmatch		" Show matching brackets.
 "set ignorecase		" Do case insensitive matching
@@ -142,17 +144,21 @@ if executable('clangd')
      \ 'cmd': {server_info->['clangd']},
      \ 'allowlist': ['c', 'cpp'],
      \ })
+else
+  echohl WarningMsg |
+              \ echomsg "clangd not found"|
+              \ echohl None
 endif
 
 " Using asyncomplete-buffer.vim
-call asyncomplete#register_source(asyncomplete#sources#buffer#get_source_options({
-    \ 'name': 'buffer',
-    \ 'whitelist': ['*'],
-    \ 'completor': function('asyncomplete#sources#buffer#completor'),
-    \ 'config': {
-    \    'max_buffer_size': 5000000,
-    \  },
-    \ }))
+"call asyncomplete#register_source(asyncomplete#sources#buffer#get_source_options({
+"    \ 'name': 'buffer',
+"    \ 'whitelist': ['*'],
+"    \ 'completor': function('asyncomplete#sources#buffer#completor'),
+"    \ 'config': {
+"    \    'max_buffer_size': 5000000,
+"    \  },
+"    \ }))
 
 
 " Using asyncomplete-file.
