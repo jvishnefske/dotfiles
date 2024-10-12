@@ -1,21 +1,24 @@
 " Specify a directory for plugins (for Neovim: ~/.local/share/nvim/plugged)
+let g:ale_completion_enabled = 1
 call plug#begin('~/.vim/plugged')
 " Async-vim is only here because it is required by vim-lsp
-Plug 'prabirshrestha/async.vim'
+"Plug 'prabirshrestha/async.vim'
 " Languages server protocol connection
-Plug 'prabirshrestha/vim-lsp'
+"Plug 'prabirshrestha/vim-lsp'
 " Autocomplete functionality
-Plug 'prabirshrestha/asyncomplete.vim'
+"Plug 'prabirshrestha/asyncomplete.vim'
 " Autocomplete source - the buffer
-Plug 'prabirshrestha/asyncomplete-buffer.vim'
+"Plug 'prabirshrestha/asyncomplete-buffer.vim'
 " Autocomplete source - files
-Plug 'prabirshrestha/asyncomplete-file.vim'
+"
+"Plug 'prabirshrestha/asyncomplete-file.vim'
 " Autocomplete source - language server protocol
-Plug 'prabirshrestha/asyncomplete-lsp.vim'
+"Plug 'prabirshrestha/asyncomplete-lsp.vim'
 " Autocomplete source - Ultisnips
-Plug 'prabirshrestha/asyncomplete-ultisnips.vim'
+"Plug 'prabirshrestha/asyncomplete-ultisnips.vim'
 " Autocomplete source - ctags
-Plug 'prabirshrestha/asyncomplete-tags.vim'
+
+"Plug 'prabirshrestha/asyncomplete-tags.vim'
 "Plug 'ycm-core/YouCompleteMe'
 "Plug 'tom-doerr/vim_codex'
 "Plug 'vim-syntastic/syntastic'
@@ -28,6 +31,8 @@ Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
 "Plug 'davidhalter/jedi'
 " On-demand loading
 Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
+Plug 'dense-analysis/ale'
+Plug 'vim-airline/vim-airline'
 "Plug 'tpope/vim-fireplace', { 'for': 'clojure' }
 "Plug 'pangloss/vim-javascript'
 " Using a non-master branch
@@ -82,7 +87,6 @@ set shortmess+=A
 "set foldtext=getline(v\:foldstart),foldtext()
 " enable Plugins on newer vim only if not found already
 let s:is_neovim = has( 'nvim' )
-
 if exists( "loaded_youcompleteme" )
     finish
 elseif ( v:version < 801 || (v:version == 801 && !has( 'patch2269' )) ) &&
@@ -144,46 +148,47 @@ if executable('clangd')
      \ })
 endif
 
-" Using asyncomplete-buffer.vim
-call asyncomplete#register_source(asyncomplete#sources#buffer#get_source_options({
-    \ 'name': 'buffer',
-    \ 'whitelist': ['*'],
-    \ 'completor': function('asyncomplete#sources#buffer#completor'),
-    \ 'config': {
-    \    'max_buffer_size': 5000000,
-    \  },
-    \ }))
+function! s:add_other_configs()
+    " Using asyncomplete-buffer.vim
+    "call asyncomplete#register_source(asyncomplete#sources#buffer#get_source_options({
+    "    \ 'name': 'buffer',
+    "    \ 'whitelist': ['*'],
+    "    \ 'completor': function('asyncomplete#sources#buffer#completor'),
+    "    \ 'config': {
+    "    \    'max_buffer_size': 5000000,
+    "    \  },
+    "    \ }))
 
 
-" Using asyncomplete-file.
-au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#file#get_source_options({
-    \ 'name': 'file',
-    \ 'whitelist': ['*'],
-    \ 'priority': 10,
-    \ 'completor': function('asyncomplete#sources#file#completor')
-    \ }))
+    " Using asyncomplete-file.
+    au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#file#get_source_options({
+        \ 'name': 'file',
+        \ 'whitelist': ['*'],
+        \ 'priority': 10,
+        \ 'completor': function('asyncomplete#sources#file#completor')
+        \ }))
 
 
-" Using Ultisnips
-call asyncomplete#register_source(asyncomplete#sources#ultisnips#get_source_options({
-      \ 'name': 'ultisnips',
-      \ 'whitelist': ['*'],
-      \ 'completor': function('asyncomplete#sources#ultisnips#completor'),
-      \ }))
+    " Using Ultisnips
+    call asyncomplete#register_source(asyncomplete#sources#ultisnips#get_source_options({
+          \ 'name': 'ultisnips',
+          \ 'whitelist': ['*'],
+          \ 'completor': function('asyncomplete#sources#ultisnips#completor'),
+          \ }))
 
-" Using Ctags
-au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#tags#get_source_options({
-    \ 'name': 'tags',
-    \ 'whitelist': ['ruby'],
-    \ 'completor': function('asyncomplete#sources#tags#completor'),
-    \ 'config': {
-    \    'max_file_size': 50000000,
-    \  },
-    \ }))
-" Log vim lsp actions
-let g:lsp_log_verbose = 1
-let g:lsp_log_file = expand('/tmp/vim-lsp.log')
-
+    " Using Ctags
+    au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#tags#get_source_options({
+        \ 'name': 'tags',
+        \ 'whitelist': ['ruby'],
+        \ 'completor': function('asyncomplete#sources#tags#completor'),
+        \ 'config': {
+        \    'max_file_size': 50000000,
+        \  },
+        \ }))
+    " Log vim lsp actions
+    let g:lsp_log_verbose = 1
+    let g:lsp_log_file = expand('/tmp/vim-lsp.log')
+endfunction
 " Tab to autocomplete with Asyncomplete
 inoremap <expr> <Tab>   pumvisible() ? "\<C-n>" : "\<Tab>"
 inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
