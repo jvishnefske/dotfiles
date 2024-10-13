@@ -1,6 +1,8 @@
 " Specify a directory for plugins (for Neovim: ~/.local/share/nvim/plugged)
 let g:ale_completion_enabled = 1
 call plug#begin('~/.vim/plugged')
+" Autocomplete functionality
+" Plug 'prabirshrestha/asyncomplete.vim'
 " Async-vim is only here because it is required by vim-lsp
 "Plug 'prabirshrestha/async.vim'
 " Languages server protocol connection
@@ -16,7 +18,7 @@ call plug#begin('~/.vim/plugged')
 "Plug 'prabirshrestha/asyncomplete-lsp.vim'
 " Autocomplete source - Ultisnips
 "Plug 'prabirshrestha/asyncomplete-ultisnips.vim'
-" Autocomplete source - ctags
+" Autocomplete source - ctags/
 
 "Plug 'prabirshrestha/asyncomplete-tags.vim'
 "Plug 'ycm-core/YouCompleteMe'
@@ -61,13 +63,13 @@ au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g
 " The following are commented out as they cause vim to behave a lot
 " differently from regular Vi. They are highly recommended though.
 filetype plugin indent on " indentation rules and plugins according to the detected filetype.
-set termguicolors       " Truecolor in terminal
+"set termguicolors       " Truecolor in terminal
 syntax on               " enable syntax highlighting by default.
 set nocompatible
 set background=dark
 set showcmd		" Show (partial) command in status line.
 set showmatch		" Show matching brackets.
-"set ignorecase		" Do case insensitive matching
+set ignorecase		" Do case insensitive matching
 set smartcase		" Do smart case matching
 set incsearch		" Incremental search
 set autowrite		" Automatically save before commands like :next and :make
@@ -101,6 +103,15 @@ elseif !has( 'python3' )
   finish
 endif
 map <leader>n :NERDTreeToggle<CR>
+
+function! StartUp()
+    if 0 == argc()
+        NERDTree
+    end
+endfunction
+
+autocmd VimEnter * call StartUp()
+
 " use plug
 function! BuildYCM(info) 
     if a:info.status == 'installed' || a:info.force 
@@ -146,6 +157,14 @@ if executable('clangd')
      \ 'cmd': {server_info->['clangd']},
      \ 'allowlist': ['c', 'cpp'],
      \ })
+endif
+
+if executable('rust-analyzer')
+  au User lsp_setup call lsp#register_server({
+        \   'name': 'Rust Language Server',
+        \   'cmd': {server_info->['rust-analyzer']},
+        \   'whitelist': ['rust'],
+        \ })
 endif
 
 function! s:add_other_configs()
