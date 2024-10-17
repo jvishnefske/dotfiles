@@ -1,11 +1,17 @@
 " Set this variable to 1 to fix files when you save them.
 call plug#begin('~/.vim/plugged')
-Plug 'junegunn/seoul256.vim'
+Plug 'morhetz/gruvbox'
 Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
 Plug 'dense-analysis/ale'
 Plug 'vim-airline/vim-airline'
 Plug 'tpope/vim-fugitive'
-Plug 'SirVer/ultisnips' | Plug 'honza/vim-snippets'
+Plug 'garbas/vim-snipmate'
+Plug 'honza/vim-snippets'
+Plug 'MarcWeber/vim-addon-mw-utils'
+Plug 'tomtom/tlib_vim'
+Plug 'godlygeek/tabular'
+Plug 'vim-scripts/VOoM' " only loads with python
+Plug 'kien/ctrlp.vim'
 " Initialize plugin system
 call plug#end()
 let g:ale_completion_enabled = 1
@@ -20,11 +26,8 @@ let g:ale_fixers = {
 
 " have Vim jump to the last position
 au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
-" The following are commented out as they cause vim to behave a lot
-" differently from regular Vi. They are highly recommended though.
 filetype plugin indent on " indentation rules and plugins according to the detected filetype.
-let g:seoul256_background = 233
-colo seoul256
+silent! colo gruvbox
 syntax on               " enable syntax highlighting by default.
 set nocompatible
 set background=dark
@@ -48,16 +51,27 @@ set foldmethod=syntax
 set shortmess+=A
 
 " note leader is \ by default.
-map <C-l> :ALEFix<CR>
-map <C-r> :ALEComplete<CR>
+map <leader>l :ALEFix<CR>
+map <leader>c :ALEComplete<CR>
+map <leader>r :ALERename<CR>
+map <leader>g :ALEGoToDefinition<CR>
+map <leader>q :ALEPopulateQuickfix<CR>
+map <leader>-<Space> :AleCodeAction<CR>
 map <leader>n :NERDTreeToggle<CR>
-let g:UltiSnipsExpandTrigger="<tab>"
-let g:UltiSnipsJumpForwardTrigger="<c-b>"
-let g:UltiSnipsJumpBackwardTrigger="<c-z>"
+map <leader>m :make<CR>
+map <leader>p :CtrlP<CR>
+map <leader>v :Voom<CR>
 
+" note that by default snipmate binds to <tab> and <c-r><tab>
 function! StartUp()
     if 0 == argc()
         NERDTree
     end
 endfunction
 autocmd VimEnter * call StartUp()
+
+" Exit Vim if NERDTree is the only window remaining in the only tab.
+autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
+" Close the tab if NERDTree is the only window remaining in it.
+autocmd BufEnter * if winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
+
