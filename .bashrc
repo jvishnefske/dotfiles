@@ -1,5 +1,5 @@
 #export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:/usr/bin:/usr/sbin:$HOME/bin/node-current/bin:/bin:/usr/local/bin:$HOME/.local/bin
-[ -f /etc/profild.d/bash_completion.sh ] && . /etc/profile.d/bash_completion.sh
+[ -f /etc/profild.d/bash_completion.sh ] && . /etc/profile.d/bash_completion.sh 
 #export PS1="\[\e[32m\][\u@\h:\W]\\$\[\e[m\]"
 export PS1="\[\e[32m\]\u@\h:\W\\$\[\e[m\]"
 [ -x /usr/bin/lesspipe.sh ] && eval "$(SHELL=/bin/sh lesspipe.sh)"
@@ -15,9 +15,8 @@ alias mv='mv -i'
 alias ls='ls --color'
 
 
-export PATH="/home/j/.local/bin:$PATH"
-. "$HOME/.cargo/env"
-# Vcpkg environment variables
-export VCPKG_ROOT="/home/j/.local/vcpkg"
-export PATH="$VCPKG_ROOT:$PATH"
-export PATH="/home/j/.local/bin:$PATH"
+# added by Anaconda3 4.4.0 installer
+export PATH="/home/j/bin/anaconda3/bin:$PATH"
+source /home/cnh/credentials.sh
+source /home/cnh/build-scripts/cnh-env.sh
+export PATH=/home/cnh/build-scripts:$PATH

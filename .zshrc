@@ -25,13 +25,12 @@ plugins=(
     docker
     docker-compose
     taskwarrior
-    ssh-agent
     systemd
     colored-man-pages
     colorize
     command-not-found
     dnf
-    dotenv
+    #dotenv
 )
 
 # Load Oh My Zsh
@@ -67,11 +66,13 @@ export MANPATH="/usr/local/man:$MANPATH"
 #
 
 
-#source $HOME/.profile
-#export PATH=$PATH:$HOME/.local/ollama/bin
-#export PATH=$HOME/build-scripts:$HOME/.local/bin:~/.local/venv/bin:$HOME/.local/build/depot_tools:$PATH
-
+source $HOME/.profile
+source /home/cnh/credentials.sh
+source /home/cnh/.openai-key
+source /home/cnh/build-scripts/cnh-env.sh
+export PATH=$HOME/build-scripts:$HOME/.local/bin::$HOME/.local/build/depot_tools:$PATH
+export PATH=$PATH:$HOME/.local/ollama/bin
 if [ -e /home/cnh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/cnh/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
-#alias code=flatpak run com.visualstudio.code
-#alias docker-compose="docker compose"
-#. "$HOME/.cargo/env"
+alias code=flatpak run com.visualstudio.code
+alias docker-compose="docker compose"
+. "$HOME/.cargo/env"
