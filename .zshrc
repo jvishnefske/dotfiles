@@ -79,7 +79,7 @@ plugins=(
     docker
     docker-compose
     taskwarrior
-    ssh
+    #ssh
     ssh-agent
     systemd
     #autoenv
@@ -109,7 +109,7 @@ source $ZSH/oh-my-zsh.sh
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
-
+ 
 # Set personal aliases, overriding those provided by oh-my-zsh libs,
 # plugins, and themes. Aliases can be placed here, though oh-my-zsh
 # users are encouraged to define aliases within the ZSH_CUSTOM folder.
@@ -118,16 +118,16 @@ source $ZSH/oh-my-zsh.sh
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-#
+# 
 
 
-source $HOME/.profile
-source /home/cnh/credentials.sh
-source /home/cnh/.openai-key
-source /home/cnh/build-scripts/cnh-env.sh
+#source $HOME/.profile
+#source /home/cnh/credentials.sh
+#source /home/cnh/.openai-key
+#source /home/cnh/build-scripts/cnh-env.sh
 export PATH=$HOME/build-scripts:$HOME/.local/bin:~/.local/venv/bin:$HOME/.local/build/depot_tools:$PATH
 
 if [ -e /home/cnh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/cnh/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
-alias code=flatpak run com.visualstudio.code
-alias docker-compose="docker compose"
-. "$HOME/.cargo/env"
+#alias code=flatpak run com.visualstudio.code
+#alias docker-compose="docker compose"
+#. "$HOME/.cargo/env"
