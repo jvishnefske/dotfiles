@@ -24,7 +24,7 @@ ZSH_THEME="robbyrussell"
 # HYPHEN_INSENSITIVE="true"
 
 # Uncomment one of the following lines to change the auto-update behavior
-# zstyle ':omz:update' mode disabled  # disable automatic updates
+zstyle ':omz:update' mode disabled  # disable automatic updates
 # zstyle ':omz:update' mode auto      # update automatically without asking
 # zstyle ':omz:update' mode reminder  # just remind me to update when it's time
 
@@ -32,7 +32,7 @@ ZSH_THEME="robbyrussell"
 # zstyle ':omz:update' frequency 13
 
 # Uncomment the following line if pasting URLs and other text is messed up.
-# DISABLE_MAGIC_FUNCTIONS="true"
+DISABLE_MAGIC_FUNCTIONS="true"
 
 # Uncomment the following line to disable colors in ls.
 # DISABLE_LS_COLORS="true"
@@ -70,10 +70,29 @@ COMPLETION_WAITING_DOTS="true"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git)
+plugins=(
+    git
+    web-search
+    pip
+    jsontools
+    magic-enter
+    docker
+    docker-compose
+    taskwarrior
+    #ssh
+    ssh-agent
+    systemd
+    #autoenv
+    colored-man-pages
+    colorize
+    command-not-found
+    dnf
+    dotenv
+    emoji-clock
+    emoji
+    )
 
 source $ZSH/oh-my-zsh.sh
-
 # User configuration
 
 # export MANPATH="/usr/local/man:$MANPATH"
@@ -90,7 +109,7 @@ source $ZSH/oh-my-zsh.sh
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
-
+ 
 # Set personal aliases, overriding those provided by oh-my-zsh libs,
 # plugins, and themes. Aliases can be placed here, though oh-my-zsh
 # users are encouraged to define aliases within the ZSH_CUSTOM folder.
@@ -99,3 +118,16 @@ source $ZSH/oh-my-zsh.sh
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
+# 
+
+
+#source $HOME/.profile
+#source /home/cnh/credentials.sh
+#source /home/cnh/.openai-key
+#source /home/cnh/build-scripts/cnh-env.sh
+export PATH=$HOME/build-scripts:$HOME/.local/bin:~/.local/venv/bin:$HOME/.local/build/depot_tools:$PATH
+
+if [ -e /home/cnh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/cnh/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
+#alias code=flatpak run com.visualstudio.code
+#alias docker-compose="docker compose"
+#. "$HOME/.cargo/env"
