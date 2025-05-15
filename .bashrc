@@ -15,8 +15,4 @@ alias mv='mv -i'
 alias ls='ls --color'
 
 
-# added by Anaconda3 4.4.0 installer
-export PATH="/home/j/bin/anaconda3/bin:$PATH"
-source /home/cnh/credentials.sh
-source /home/cnh/build-scripts/cnh-env.sh
-export PATH=/home/cnh/build-scripts:$PATH
+export PATH="/home/j/.local/bin:$PATH"
