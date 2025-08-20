@@ -5,6 +5,14 @@ set -e  # Exit on error
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Installing dotfiles from $DOTFILES_DIR"
 
+install_nats(){
+    go install github.com/nats-io/natscli/nats@latest
+    go install github.com/nats-io/nats-server/v2@main
+    go install github.com/nats-io/nkeys/nk@latest
+    # curl -L https://raw.githubusercontent.com/nats-io/nsc/master/install.py | python
+
+}
+
 # Create function to safely create symbolic links
 create_link() {
     local source="$DOTFILES_DIR/$1"

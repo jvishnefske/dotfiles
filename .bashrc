@@ -16,3 +16,4 @@ alias ls='ls --color'
 
 
 export PATH="/home/j/.local/bin:$PATH"
+. "$HOME/.cargo/env"
