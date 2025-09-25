@@ -60,9 +60,10 @@ Plug 'honza/vim-snippets'
 "Plug 'wincent/command-t', { 'branch': '5-x-release' } 
 
 if has('nvim')
-  Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+  "Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 else
-  Plug 'ycm-core/YouCompleteMe', {'branch': 'legacy-vim-8.1'}
+  "Plug 'ycm-core/YouCompleteMe', {'branch': 'legacy-vim-8.1'}
+  Plug 'neoclide/coc.nvim', {'branch': 'deps'}
 endif
 
 call plug#end()
@@ -96,10 +97,9 @@ syntax on
 filetype plugin indent on
 silent! colorscheme gruvbox
 
-" ALE configuration (Vim-specific)
-let g:ale_completion_enabled = 1
+" ALE configuration
 let g:airline#extensions#ale#enabled = 1
-let g:ale_fix_on_save = 0
+" let g:ale_fix_on_save = 0  " Already set above on line 35
 let g:ale_fixers = {
 \   '*': ['remove_trailing_lines', 'trim_whitespace'],
 \   'cpp': ['clang-format'],

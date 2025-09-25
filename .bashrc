@@ -17,3 +17,6 @@ alias ls='ls --color'
 
 export PATH="/home/j/.local/bin:$PATH"
 . "$HOME/.cargo/env"
+# Vcpkg environment variables
+export VCPKG_ROOT="/home/j/.local/vcpkg"
+export PATH="$VCPKG_ROOT:$PATH"
