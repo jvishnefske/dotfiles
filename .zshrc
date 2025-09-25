@@ -79,3 +79,6 @@ if [ -e /home/cnh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/cnh/.nix-pro
 export PATH=$PATH:$HOME/.local/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin/
 export PATH=$PATH:$HOME/.local/node-v22.17.0-linux-x64/bin
 
+# Vcpkg environment variables
+export VCPKG_ROOT="/home/j/.local/vcpkg"
+export PATH="$VCPKG_ROOT:$PATH"

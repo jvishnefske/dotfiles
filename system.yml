@@ -1,0 +1,50 @@
+---
+- name: Install system packages
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Install Go
+      ansible.builtin.package:
+        name: golang
+        state: present
+      tags: go
+
+    - name: Install Vim
+      ansible.builtin.package:
+        name: vim
+        state: present
+      tags: vim
+
+    - name: Install Neovim
+      ansible.builtin.package:
+        name: neovim
+        state: present
+      tags: nvim
+
+    - name: Install Git
+      ansible.builtin.package:
+        name: git
+        state: present
+      tags: git
+
+    - name: Install curl
+      ansible.builtin.package:
+        name: curl
+        state: present
+      tags: curl
+
+    - name: Install build essentials
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - gcc
+        - make
+      tags: build-tools
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: "System packages installation complete!"

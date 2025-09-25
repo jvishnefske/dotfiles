@@ -1,0 +1,186 @@
+---
+- name: Install dotfiles configuration
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars:
+    dotfiles_dir: "{{ ansible_env.PWD }}"
+    home_dir: "{{ ansible_env.HOME }}"
+
+  tasks:
+    - name: Check if rustup is installed
+      ansible.builtin.command: which rustup
+      register: rustup_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install rustup
+      ansible.builtin.shell: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source {{ home_dir }}/.cargo/env
+      when: rustup_check.rc != 0
+      tags: rust
+
+    - name: Update rustup
+      ansible.builtin.command: rustup update
+      when: rustup_check.rc == 0
+      tags: rust
+
+    - name: Check if uv is installed
+      ansible.builtin.command: which uv
+      register: uv_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install uv (which includes uvx)
+      ansible.builtin.shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      when: uv_check.rc != 0
+      tags: python
+
+    - name: Update uv
+      ansible.builtin.command: uv self update
+      when: uv_check.rc == 0
+      tags: python
+
+    - name: Check if Go is installed
+      ansible.builtin.command: which go
+      register: go_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install NATS tools
+      ansible.builtin.shell: |
+        go install github.com/nats-io/natscli/nats@latest
+        go install github.com/nats-io/nats-server/v2@main
+        go install github.com/nats-io/nkeys/nk@latest
+      when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows"
+      tags: nats
+
+    - name: Create necessary directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ home_dir }}/.config"
+        - "{{ home_dir }}/.config/zsh"
+        - "{{ home_dir }}/.config/nvim"
+        - "{{ home_dir }}/.vim"
+        - "{{ home_dir }}/.vim/autoload"
+        - "{{ home_dir }}/.local/share/nvim/site/autoload"
+
+    - name: Backup existing configuration files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ item }}.backup"
+        remote_src: yes
+        backup: yes
+      loop:
+        - "{{ home_dir }}/.profile"
+        - "{{ home_dir }}/.bashrc"
+        - "{{ home_dir }}/.zshrc"
+        - "{{ home_dir }}/.gitconfig"
+        - "{{ home_dir }}/.vimrc"
+      when: ansible_stat.stat.exists and not ansible_stat.stat.islnk
+      loop_control:
+        loop_var: item
+      vars:
+        ansible_stat: "{{ ansible_facts.stat }}"
+      ignore_errors: yes
+
+    - name: Check if files exist and are not symlinks
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: existing_files
+      loop:
+        - "{{ home_dir }}/.profile"
+        - "{{ home_dir }}/.bashrc"
+        - "{{ home_dir }}/.zshrc"
+        - "{{ home_dir }}/.gitconfig"
+        - "{{ home_dir }}/.vimrc"
+
+    - name: Create symbolic links for shell configuration files
+      ansible.builtin.file:
+        src: "{{ dotfiles_dir }}/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+        force: yes
+      loop:
+        - { src: ".profile", dest: "{{ home_dir }}/.profile" }
+        - { src: ".bashrc", dest: "{{ home_dir }}/.bashrc" }
+        - { src: ".zshrc", dest: "{{ home_dir }}/.zshrc" }
+        - { src: "ohmyzsh", dest: "{{ home_dir }}/.oh-my-zsh" }
+        - { src: "zsh", dest: "{{ home_dir }}/.config/zsh" }
+      tags: shell
+
+    - name: Create symbolic link for Git configuration
+      ansible.builtin.file:
+        src: "{{ dotfiles_dir }}/.gitconfig"
+        dest: "{{ home_dir }}/.gitconfig"
+        state: link
+        force: yes
+      tags: git
+
+    - name: Create symbolic links for Vim configuration
+      ansible.builtin.file:
+        src: "{{ dotfiles_dir }}/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+        force: yes
+      loop:
+        - { src: "vim", dest: "{{ home_dir }}/.vim" }
+        - { src: ".vimrc", dest: "{{ home_dir }}/.vimrc" }
+      tags: vim
+
+    - name: Check if Neovim is installed
+      ansible.builtin.command: which nvim
+      register: nvim_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Create symbolic link for Neovim configuration
+      ansible.builtin.file:
+        src: "{{ dotfiles_dir }}/nvim"
+        dest: "{{ home_dir }}/.config/nvim"
+        state: link
+        force: yes
+      when: nvim_check.rc == 0
+      tags: nvim
+
+    - name: Check if Vim is installed
+      ansible.builtin.command: which vim
+      register: vim_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Download Vim-Plug for Vim
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        dest: "{{ home_dir }}/.vim/autoload/plug.vim"
+        mode: '0644'
+      when: vim_check.rc == 0
+      tags: vim-plug
+
+    - name: Install Vim plugins
+      ansible.builtin.shell: |
+        vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
+      when: vim_check.rc == 0
+      tags: vim-plugins
+
+    - name: Download Vim-Plug for Neovim
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        dest: "{{ home_dir }}/.local/share/nvim/site/autoload/plug.vim"
+        mode: '0644'
+      when: nvim_check.rc == 0
+      tags: nvim-plug
+
+    - name: Install Neovim plugins
+      ansible.builtin.shell: |
+        nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
+      when: nvim_check.rc == 0
+      tags: nvim-plugins
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: "Dotfiles installation complete!"
