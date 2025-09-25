@@ -23,7 +23,7 @@
 
     - name: Update rustup
       ansible.builtin.command: rustup update
-      when: rustup_check.rc == 0
+      when: rustup_check.rc == 0 and update_rustup | default(false)
       tags: rust
 
     - name: Check if uv is installed
@@ -48,12 +48,20 @@
       ignore_errors: yes
       changed_when: false
 
+    - name: Check Go version
+      ansible.builtin.shell: go version | grep -o 'go[0-9.]*' | cut -c3-
+      register: go_version_check
+      when: go_check.rc == 0
+      changed_when: false
+      ignore_errors: yes
+
     - name: Install NATS tools
       ansible.builtin.shell: |
         go install github.com/nats-io/natscli/nats@latest
-        go install github.com/nats-io/nats-server/v2@main
+        go install github.com/nats-io/nats-server/v2@main  
         go install github.com/nats-io/nkeys/nk@latest
-      when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows"
+      when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows" and install_nats_tools | default(false)
+      ignore_errors: yes
       tags: nats
 
     - name: Create necessary directories
@@ -69,26 +77,7 @@
         - "{{ home_dir }}/.vim/autoload"
         - "{{ home_dir }}/.local/share/nvim/site/autoload"
 
-    - name: Backup existing configuration files
-      ansible.builtin.copy:
-        src: "{{ item }}"
-        dest: "{{ item }}.backup"
-        remote_src: yes
-        backup: yes
-      loop:
-        - "{{ home_dir }}/.profile"
-        - "{{ home_dir }}/.bashrc"
-        - "{{ home_dir }}/.zshrc"
-        - "{{ home_dir }}/.gitconfig"
-        - "{{ home_dir }}/.vimrc"
-      when: ansible_stat.stat.exists and not ansible_stat.stat.islnk
-      loop_control:
-        loop_var: item
-      vars:
-        ansible_stat: "{{ ansible_facts.stat }}"
-      ignore_errors: yes
-
-    - name: Check if files exist and are not symlinks
+    - name: Check if configuration files exist and are not symlinks
       ansible.builtin.stat:
         path: "{{ item }}"
       register: existing_files
@@ -98,6 +87,15 @@
         - "{{ home_dir }}/.zshrc"
         - "{{ home_dir }}/.gitconfig"
         - "{{ home_dir }}/.vimrc"
+
+    - name: Backup existing configuration files
+      ansible.builtin.copy:
+        src: "{{ item.item }}"
+        dest: "{{ item.item }}.backup"
+        remote_src: yes
+      when: item.stat.exists and not item.stat.islnk
+      loop: "{{ existing_files.results }}"
+      ignore_errors: yes
 
     - name: Create symbolic links for shell configuration files
       ansible.builtin.file:
@@ -110,7 +108,6 @@
         - { src: ".bashrc", dest: "{{ home_dir }}/.bashrc" }
         - { src: ".zshrc", dest: "{{ home_dir }}/.zshrc" }
         - { src: "ohmyzsh", dest: "{{ home_dir }}/.oh-my-zsh" }
-        - { src: "zsh", dest: "{{ home_dir }}/.config/zsh" }
       tags: shell
 
     - name: Create symbolic link for Git configuration
@@ -128,14 +125,21 @@
         state: link
         force: yes
       loop:
-        - { src: "vim", dest: "{{ home_dir }}/.vim" }
         - { src: ".vimrc", dest: "{{ home_dir }}/.vimrc" }
       tags: vim
 
+    - name: Create symbolic link for common.vim
+      ansible.builtin.file:
+        src: "{{ dotfiles_dir }}/vim/common.vim"
+        dest: "{{ home_dir }}/.vim/common.vim"
+        state: link
+        force: yes
+      tags: vim
+
     - name: Check if Neovim is installed
-      ansible.builtin.command: which nvim
+      ansible.builtin.shell: command -v nvim
       register: nvim_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
 
     - name: Create symbolic link for Neovim configuration

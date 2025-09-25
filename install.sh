@@ -5,116 +5,69 @@ set -e  # Exit on error
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Installing dotfiles from $DOTFILES_DIR"
 
-# Create function to safely create symbolic links
-create_link() {
-    local source="$DOTFILES_DIR/$1"
-    local target="$2"
-    local target_dir="$(dirname "$target")"
-    
-    # Check if source exists
-    if [[ ! -e "$source" ]]; then
-        echo "Warning: Source file not found: $source"
-        return 1
-    fi
-    
-    # Create target directory if it doesn't exist
-    if [[ ! -d "$target_dir" ]]; then
-        echo "Creating directory: $target_dir"
-        mkdir -p "$target_dir"
-    fi
-    
-    # Create or update symlink
-    if [[ -L "$target" ]]; then
-        # Symlink exists, update if needed
-        local current_link="$(readlink "$target")"
-        if [[ "$current_link" != "$source" ]]; then
-            echo "Updating existing symlink: $target -> $source"
-            ln -sf "$source" "$target"
-        else
-            echo "Symlink already points to correct location: $target"
-        fi
-    elif [[ -e "$target" ]]; then
-        # File exists but is not a symlink, create backup and link
-        echo "Backing up existing file: $target -> $target.backup"
-        mv "$target" "$target.backup"
-        echo "Creating symlink: $target -> $source"
-        ln -s "$source" "$target"
+# Function to check if uv is installed
+check_uv() {
+    if command -v uv &> /dev/null; then
+        echo "uv is already installed"
+        return 0
     else
-        # Target doesn't exist, create symlink
-        echo "Creating symlink: $target -> $source"
-        ln -s "$source" "$target"
+        return 1
     fi
 }
 
-# Install shell configuration files
-echo "Setting up shell configuration..."
-create_link ".profile" "$HOME/.profile"
-create_link ".bashrc" "$HOME/.bashrc"
-create_link ".zshrc" "$HOME/.zshrc"
-create_link "ohmyzsh" "$HOME/.oh-my-zsh"
-create_link "zsh" "$HOME/.config/zsh"
-
-# Install Git configuration
-echo "Setting up Git configuration..."
-create_link ".gitconfig" "$HOME/.gitconfig"
-
-# Setup Vim configuration
-echo "Setting up Vim configuration..."
-create_link "vim" "$HOME/.vim"
-create_link ".vimrc" "$HOME/.vimrc"
-
-# Setup Neovim configuration (if needed)
-if command -v nvim &> /dev/null; then
-    echo "Neovim detected, setting up Neovim configuration..."
-    create_link "nvim" "$HOME/.config/nvim"
-    
-    # Create common.vim directory if it doesn't exist
-    if [[ ! -d "$HOME/.vim" ]]; then
-        mkdir -p "$HOME/.vim"
-    fi
-    
-    # Ensure common.vim exists
-    if [[ ! -f "$DOTFILES_DIR/vim/common.vim" ]]; then
-        echo "Warning: common.vim not found, make sure to create it for shared configuration"
-    fi
-fi
-
-# Install Vim-Plug for Vim
-if command -v vim &> /dev/null; then
-    echo "Installing Vim-Plug for Vim..."
-    if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
-        curl -fLo "$HOME/.vim/autoload/plug.vim" --create-dirs \
-            https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+# Function to install uv
+install_uv() {
+    echo "uv is not installed."
+    read -p "Would you like to install uv? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
         
-        echo "Vim-Plug installed for Vim"
+        # Source the shell configuration to make uv available
+        if [[ -f "$HOME/.cargo/env" ]]; then
+            source "$HOME/.cargo/env"
+        fi
+        
+        # Add to PATH for current session
+        export PATH="$HOME/.cargo/bin:$PATH"
+        
+        # Verify installation
+        if command -v uv &> /dev/null; then
+            echo "uv installed successfully"
+            return 0
+        else
+            echo "Error: uv installation failed"
+            return 1
+        fi
     else
-        echo "Vim-Plug already installed for Vim"
+        echo "uv installation cancelled. Cannot proceed with ansible installation."
+        exit 1
+    fi
+}
+
+# Function to run ansible playbook
+run_ansible() {
+    echo "Running ansible playbook to install dotfiles..."
+    
+    # Check if install.yml exists
+    if [[ ! -f "$DOTFILES_DIR/install.yml" ]]; then
+        echo "Error: install.yml not found in $DOTFILES_DIR"
+        exit 1
     fi
     
-    # Automatically install plugins
-    echo "Installing Vim plugins..."
-    vim -es -u "$HOME/.vimrc" -i NONE -c "PlugInstall" -c "qa"
-else
-    echo "Vim not detected, skipping Vim-Plug installation for Vim"
+    # Run ansible playbook using uvx
+    uvx --from ansible-core ansible-playbook "$DOTFILES_DIR/install.yml"
+}
+
+# Main installation flow
+echo "Checking for uv installation..."
+
+if ! check_uv; then
+    install_uv
 fi
 
-# Install Vim-Plug for Neovim (if needed)
-if command -v nvim &> /dev/null; then
-    echo "Installing Vim-Plug for Neovim..."
-    if [[ ! -f "$HOME/.local/share/nvim/site/autoload/plug.vim" ]]; then
-        curl -fLo "$HOME/.local/share/nvim/site/autoload/plug.vim" --create-dirs \
-            https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-            
-        echo "Vim-Plug installed for Neovim"
-    else
-        echo "Vim-Plug already installed for Neovim"
-    fi
-    
-    # Automatically install plugins
-    echo "Installing Neovim plugins..."
-    nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
-else
-    echo "Neovim not detected, skipping Vim-Plug installation for Neovim"
-fi
+# Run the ansible playbook
+run_ansible
 
 echo "Dotfiles installation complete!"
