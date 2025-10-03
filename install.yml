@@ -39,8 +39,64 @@
 
     - name: Update uv
       ansible.builtin.command: uv self update
-      when: uv_check.rc == 0
+      when: uv_check.rc == 0 and update_uv | default(false)
       tags: python
+
+    - name: Check if gh (GitHub CLI) is installed
+      ansible.builtin.shell: command -v gh
+      register: gh_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install GitHub CLI (macOS)
+      ansible.builtin.shell: |
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        sudo apt update
+        sudo apt install gh -y
+      when: gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
+      tags: github
+
+    - name: Create ~/.local/bin directory
+      ansible.builtin.file:
+        path: "{{ home_dir }}/.local/bin"
+        state: directory
+        mode: '0755'
+      when: gh_check.rc != 0 and ansible_facts['system'] == "Darwin"
+      tags: github
+
+    - name: Download and extract GitHub CLI for macOS
+      ansible.builtin.unarchive:
+        src: "https://github.com/cli/cli/releases/download/v2.81.0/gh_2.81.0_macOS_amd64.tar.gz"
+        dest: "/tmp"
+        remote_src: yes
+        creates: "/tmp/gh_2.81.0_macOS_amd64"
+      when: gh_check.rc != 0 and ansible_facts['system'] == "Darwin"
+      tags: github
+
+    - name: Copy gh binary to ~/.local/bin
+      ansible.builtin.copy:
+        src: "/tmp/gh_2.81.0_macOS_amd64/bin/gh"
+        dest: "{{ home_dir }}/.local/bin/gh"
+        mode: '0755'
+        remote_src: yes
+      when: gh_check.rc != 0 and ansible_facts['system'] == "Darwin"
+      tags: github
+
+    - name: Clean up temporary files
+      ansible.builtin.file:
+        path: "/tmp/gh_2.81.0_macOS_amd64"
+        state: absent
+      when: gh_check.rc != 0 and ansible_facts['system'] == "Darwin"
+      tags: github
+
+    - name: Install GitHub CLI (RHEL/CentOS)
+      ansible.builtin.shell: |
+        sudo dnf install 'dnf-command(config-manager)' -y
+        sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+        sudo dnf install gh -y
+      when: gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
+      tags: github
 
     - name: Check if Go is installed
       ansible.builtin.command: which go
