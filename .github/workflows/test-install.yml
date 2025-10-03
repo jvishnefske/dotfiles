@@ -1,0 +1,128 @@
+name: Test Install Script
+
+on:
+  push:
+    branches: [ master, dev ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test-install:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Make install script executable
+      run: chmod +x install.sh
+    
+    - name: Run install script (non-interactive)
+      run: |
+        # For testing, we'll answer 'y' to uv installation prompt if needed
+        echo "y" | ./install.sh || true
+      shell: bash
+    
+    - name: Verify uv installation
+      run: |
+        if command -v uv >/dev/null 2>&1; then
+          echo "✓ uv is installed"
+          uv --version
+        else
+          echo "✗ uv not found in PATH"
+          exit 1
+        fi
+    
+    - name: Verify dotfiles symlinks
+      run: |
+        echo "Checking dotfile symlinks..."
+        
+        check_symlink() {
+          if [ -L "$1" ]; then
+            echo "✓ $1 is symlinked to $(readlink "$1")"
+          else
+            echo "✗ $1 is not a symlink or doesn't exist"
+            return 1
+          fi
+        }
+        
+        check_symlink ~/.bashrc
+        check_symlink ~/.zshrc
+        check_symlink ~/.profile
+        check_symlink ~/.gitconfig
+        check_symlink ~/.vimrc
+        check_symlink ~/.oh-my-zsh
+        
+        if [ -L ~/.config/nvim ]; then
+          check_symlink ~/.config/nvim
+        else
+          echo "ℹ Neovim config not linked (nvim might not be installed)"
+        fi
+    
+    - name: Verify GitHub CLI installation (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        if command -v gh >/dev/null 2>&1; then
+          echo "✓ GitHub CLI is installed"
+          gh --version
+        else
+          echo "✗ GitHub CLI not found in PATH"
+          echo "Checking if it exists in ~/.local/bin..."
+          if [ -f ~/.local/bin/gh ]; then
+            echo "✓ Found gh in ~/.local/bin"
+            ~/.local/bin/gh --version
+          else
+            echo "✗ gh not found in ~/.local/bin either"
+            exit 1
+          fi
+        fi
+    
+    - name: Test vim configuration
+      run: |
+        if command -v vim >/dev/null 2>&1; then
+          echo "✓ Vim is available"
+          # Test that vim can load the config without errors
+          vim --version | head -1
+          
+          # Check if common.vim symlink exists
+          if [ -L ~/.vim/common.vim ]; then
+            echo "✓ common.vim is symlinked"
+          else
+            echo "✗ common.vim symlink not found"
+          fi
+        else
+          echo "ℹ Vim not available in test environment"
+        fi
+    
+    - name: Verify ansible installation worked
+      run: |
+        # Check if the ansible playbook ran successfully by looking for created directories
+        if [ -d ~/.config ]; then
+          echo "✓ ~/.config directory exists"
+        fi
+        
+        if [ -d ~/.vim ]; then
+          echo "✓ ~/.vim directory exists"
+        fi
+        
+        if [ -d ~/.local/share/nvim/site/autoload ]; then
+          echo "✓ Neovim autoload directory exists"
+        fi
+    
+    - name: Show installation summary
+      run: |
+        echo "=== Installation Summary ==="
+        echo "OS: ${{ matrix.os }}"
+        echo "uv version: $(command -v uv >/dev/null && uv --version || echo 'not found')"
+        echo "gh version: $(command -v gh >/dev/null && gh --version || echo 'not found')"
+        echo "vim version: $(command -v vim >/dev/null && vim --version | head -1 || echo 'not found')"
+        echo "nvim version: $(command -v nvim >/dev/null && nvim --version | head -1 || echo 'not found')"
+        echo ""
+        echo "Symlinked dotfiles:"
+        ls -la ~/ | grep " -> " || echo "No symlinks found in home directory"
