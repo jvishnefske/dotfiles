@@ -41,26 +41,6 @@ The installer will:
 - Install Vim/Neovim plugins automatically
 - Set up development tools (Rust, Python, Go, NATS)
 
-## File Structure
-
-```
-.
-├── install.sh          # Main installation script
-├── install.yml         # Ansible playbook for system setup
-├── install.py          # Deprecated Python installer
-├── .bashrc             # Bash configuration
-├── .zshrc              # Zsh configuration  
-├── .profile            # Shared shell profile
-├── .gitconfig          # Git configuration
-├── .vimrc              # Vim configuration
-├── vim/                # Vim configuration directory
-├── nvim/               # Neovim configuration
-├── ohmyzsh/            # Oh-My-Zsh framework (git submodule)
-├── system.yml          # System-level Ansible configuration
-├── setup_vcpkg.yml     # C++ package manager setup
-└── virtualenvwrapper.sh # Python virtual environment tools
-```
-
 ## What Gets Installed
 
 ### Shell Environment
@@ -81,7 +61,7 @@ All configuration files are symlinked from this repository to your home director
 - `~/.profile` → `.profile`
 - `~/.gitconfig` → `.gitconfig`
 - `~/.vimrc` → `.vimrc`
-- `~/.vim/` → `vim/`
+- `~/.vim/common.vim` → `vim/common.vim`
 - `~/.config/nvim/` → `nvim/`
 - `~/.oh-my-zsh/` → `ohmyzsh/`
 
