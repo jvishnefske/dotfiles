@@ -49,14 +49,17 @@ install_uv() {
 # Function to run ansible playbook
 run_ansible() {
     echo "Running ansible playbook to install dotfiles..."
-    
+
     # Check if install.yml exists
     if [[ ! -f "$DOTFILES_DIR/install.yml" ]]; then
         echo "Error: install.yml not found in $DOTFILES_DIR"
         exit 1
     fi
-    
+
     # Run ansible playbook using uvx
+    # This playbook contains non-root tasks only
+    # For system-level packages requiring root (e.g., GitHub CLI), run install-system.yml separately with:
+    # uvx --from ansible-core ansible-playbook install-system.yml --ask-become-pass -e "install_github_cli=true"
     uvx --from ansible-core ansible-playbook "$DOTFILES_DIR/install.yml"
 }
 

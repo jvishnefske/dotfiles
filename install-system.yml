@@ -1,0 +1,65 @@
+---
+- name: Install system-level packages (requires root)
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: true
+  vars:
+    home_dir: "{{ ansible_facts.env.HOME }}"
+
+  tasks:
+    - name: Check if gh (GitHub CLI) is installed
+      ansible.builtin.shell: command -v gh
+      register: gh_check
+      failed_when: false
+      changed_when: false
+      become: false
+      when: install_github_cli | default(false)
+
+    - name: Download GitHub CLI GPG key (Debian/Ubuntu)
+      ansible.builtin.get_url:
+        url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+        dest: /usr/share/keyrings/githubcli-archive-keyring.gpg
+        mode: '0644'
+      when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
+      tags: github
+
+    - name: Add GitHub CLI repository (Debian/Ubuntu)
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ ansible_architecture }} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        state: present
+        filename: github-cli
+      when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
+      tags: github
+
+    - name: Install GitHub CLI (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: gh
+        state: present
+        update_cache: yes
+      when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
+      tags: github
+
+    - name: Install dnf-plugins-core (RHEL/CentOS)
+      ansible.builtin.dnf:
+        name: dnf-plugins-core
+        state: present
+      when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
+      tags: github
+
+    - name: Add GitHub CLI repository (RHEL/CentOS)
+      ansible.builtin.command: dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+      when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
+      tags: github
+
+    - name: Install GitHub CLI (RHEL/CentOS)
+      ansible.builtin.dnf:
+        name: gh
+        state: present
+      when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
+      tags: github
+
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: "System packages installation complete!"
+      become: false

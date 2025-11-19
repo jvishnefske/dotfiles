@@ -6,7 +6,7 @@ pathadd() {
 export PATH=/usr/bin:/bin:/usr/local/bin
 export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:$HOME/.local/bin:$PATH
 #[ -x $HOME/.dotfiles/auto-nfs.sh ] && $HOME/.dotfiles/auto-nfs.sh 2>&1 >/dev/null
-    . "$HOME/.cargo/env"
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 pathadd() {
     if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
