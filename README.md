@@ -1,6 +1,14 @@
 # dotfiles
 
-Personal terminal and development environment configuration files for a productive development setup.
+Personal terminal and development environment configuration files for a productive development setup. Shell configs (Zsh/Bash), Vim/Neovim settings, Git configuration, and development tools - all automated with Ansible.
+
+## Quick Start
+
+```bash
+git clone https://github.com/jvishnefske/dotfiles ~/.dotfiles
+cd ~/.dotfiles
+./install.sh
+```
 
 ## Features
 
@@ -11,8 +19,6 @@ Personal terminal and development environment configuration files for a producti
 - **System Configuration**: Network mounting, systemd services
 - **Automated Installation**: Ansible-based setup with dependency management
 
-## Quick Start
-
 ### Prerequisites
 
 The installer will automatically check for and offer to install `uv` if not present. You can also install it manually:
@@ -20,19 +26,6 @@ The installer will automatically check for and offer to install `uv` if not pres
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone <repository-url> ~/.dotfiles
-   cd ~/.dotfiles
-   ```
-
-2. Run the installer:
-   ```bash
-   ./install.sh
-   ```
 
 The installer will:
 - Check for `uv` and prompt to install if missing
