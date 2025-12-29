@@ -21,3 +21,5 @@ pathadd $HOME/.local/node-v22.17.0-linux-x64/bin
 pathadd /opt/rocm-6.2.0/lib/llvm/bin/
 
 . "$HOME/.local/bin/env"
+
+export PATH="$HOME/.elan/bin:$PATH"

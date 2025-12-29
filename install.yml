@@ -5,8 +5,8 @@
   gather_facts: yes
   become: false
   vars:
-    dotfiles_dir: "{{ ansible_facts.env.PWD }}"
-    home_dir: "{{ ansible_facts.env.HOME }}"
+    dotfiles_dir: "{{ ansible_env.PWD }}"
+    home_dir: "{{ ansible_env.HOME }}"
 
   tasks:
     - name: Check if rustup is installed
@@ -96,6 +96,7 @@
       when: go_check.rc == 0
       changed_when: false
       ignore_errors: yes
+      changed_when: false
 
     - name: Install NATS tools
       ansible.builtin.shell: |
@@ -127,7 +128,26 @@
         - "{{ home_dir }}/.vim/autoload"
         - "{{ home_dir }}/.local/share/nvim/site/autoload"
 
-    - name: Check if configuration files exist and are not symlinks
+    - name: Backup existing configuration files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ item }}.backup"
+        remote_src: yes
+        backup: yes
+      loop:
+        - "{{ home_dir }}/.profile"
+        - "{{ home_dir }}/.bashrc"
+        - "{{ home_dir }}/.zshrc"
+        - "{{ home_dir }}/.gitconfig"
+        - "{{ home_dir }}/.vimrc"
+      when: ansible_stat.stat.exists and not ansible_stat.stat.islnk
+      loop_control:
+        loop_var: item
+      vars:
+        ansible_stat: "{{ ansible_facts.stat }}"
+      ignore_errors: yes
+
+    - name: Check if files exist and are not symlinks
       ansible.builtin.stat:
         path: "{{ item }}"
       register: existing_files
@@ -158,6 +178,7 @@
         - { src: ".bashrc", dest: "{{ home_dir }}/.bashrc" }
         - { src: ".zshrc", dest: "{{ home_dir }}/.zshrc" }
         - { src: "ohmyzsh", dest: "{{ home_dir }}/.oh-my-zsh" }
+        - { src: "zsh", dest: "{{ home_dir }}/.config/zsh" }
       tags: shell
 
     - name: Create symbolic link for Git configuration
@@ -175,6 +196,7 @@
         state: link
         force: yes
       loop:
+        - { src: "vim", dest: "{{ home_dir }}/.vim" }
         - { src: ".vimrc", dest: "{{ home_dir }}/.vimrc" }
       tags: vim
 
@@ -187,7 +209,7 @@
       tags: vim
 
     - name: Check if Neovim is installed
-      ansible.builtin.shell: command -v nvim
+      ansible.builtin.command: which nvim
       register: nvim_check
       failed_when: false
       changed_when: false

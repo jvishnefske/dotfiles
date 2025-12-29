@@ -84,3 +84,17 @@ export VCPKG_ROOT="/home/j/.local/vcpkg"
 export PATH="$VCPKG_ROOT:$PATH"
 
 . "$HOME/.local/bin/env"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+source $HOME/.elan/env
+
+
+# BEGIN opam configuration
+# This is useful if you're using opam as it adds:
+#   - the correct directories to the PATH
+#   - auto-completion for the opam binary
+# This section can be safely removed at any time if needed.
+[[ ! -r '/home/j/.opam/opam-init/init.zsh' ]] || source '/home/j/.opam/opam-init/init.zsh' > /dev/null 2> /dev/null
+# END opam configuration
