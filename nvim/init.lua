@@ -1,6 +1,4 @@
 -- ~/.config/nvim/init.lua
-
--- Source common configuration
-vim.cmd('source ~/.vim/common.vim')
-
-
+-- Follow whichever flavor ~/.vimrc points at, so a single symlink swap
+-- (~/.vimrc -> common.vim | ale.vim) switches both editors.
+vim.cmd('source ~/.vimrc')
