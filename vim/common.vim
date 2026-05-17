@@ -1,126 +1,117 @@
 " ~/.vim/common.vim
+" Shared config for vim and nvim. Single completion stack: coc.nvim.
 
-" Common settings for both Vim and Neovim
+" ---- Core settings --------------------------------------------------------
 set nocompatible
 set background=dark
-set showcmd             " Show (partial) command in status line.
-set showmatch           " Show matching brackets.
-set ignorecase          " Do case insensitive matching
-set smartcase           " Do smart case matching
-set incsearch           " Incremental search
-set autowrite           " Automatically save before commands like :next and :make
-set hidden              " Hide buffers when they are abandoned
-set mouse=a             " Enable mouse usage (all modes)
-set wildmenu            " autocomplete vim commands
+set showcmd
+set showmatch
+set ignorecase
+set smartcase
+set incsearch
+set autowrite
+set hidden
+set mouse=a
+set wildmenu
 set autoindent
 set ruler
-set number              " line numbers
+set number
 set shiftwidth=4
 set softtabstop=4
 set expandtab
-set wildmenu
 set foldmethod=syntax
-set shortmess+=A        " Turn click-me warnings about swapfiles into discreet messages
+set shortmess+=A
+set shortmess+=c
 set nowrap
 
+" coc.nvim recommendations
+set updatetime=300
+set signcolumn=yes
+set cmdheight=2
+set completeopt=menuone,noinsert,noselect
+set pumheight=15
 
-" Enable completion where available.
-" This setting must be set before ALE is loaded.
-"
-" You should not turn this setting on if you wish to use ALE as a completion
-" source for other completion plugins, like Deoplete.
-let g:ale_completion_enabled = 1
+let mapleader = "\\"
 
-" Set this variable to 1 to fix files when you save them.
-let g:ale_fix_on_save = 1
-
-" Set this. Airline will handle the rest.
-let g:airline#extensions#ale#enabled = 1
-"let g:ale_floating_window_border = ['│', '─', '╭', '╮', '╯', '╰', '│', '─']
-"let g:ale_open_list = 1
-let g:deoplete#enable_at_startup = 1
-"let g:ycm_min_num_of_chars_for_completion = 9
-let g:UltiSnipsExpandTrigger = '<C-Space>'
-"let g:UltiSnipsJumpForwardTrigger = '<C-j>'
-"let g:UltiSnipsJumpBackwardTrigger = '<C-k>'
-
+" ---- Plugins (vim-plug) ---------------------------------------------------
 call plug#begin('~/.vim/plugged')
-Plug 'morhetz/gruvbox'
-Plug 'altercation/vim-colors-solarized'
-Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle' }
-Plug 'dense-analysis/ale'
-Plug 'vim-airline/vim-airline'
-Plug 'tpope/vim-fugitive'
-Plug 'marcweber/vim-addon-mw-utils'
-Plug 'garbas/vim-snipmate'
-Plug 'honza/vim-snippets'
-"Plug 'tomtom/tlib_vim'
-"Plug 'godlygeek/tabular'
-"Plug 'vim-scripts/VOoM'
-"Plug 'kien/ctrlp.vim'
-"Plug 'wincent/command-t', { 'branch': '5-x-release' }
 
-if has('nvim')
-  "Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-else
-  "Plug 'ycm-core/YouCompleteMe', {'branch': 'legacy-vim-8.1'}
-  "Plug 'neoclide/coc.nvim', {'branch': 'deps'}
-endif
+" UI
+Plug 'morhetz/gruvbox'
+Plug 'vim-airline/vim-airline'
+Plug 'scrooloose/nerdtree', { 'on': 'NERDTreeToggle' }
+
+" Editing / navigation
+Plug 'tpope/vim-fugitive'
+Plug 'ctrlpvim/ctrlp.vim'
+
+" Language
+Plug 'rust-lang/rust.vim'
+
+" Completion / LSP — single source of truth
+Plug 'neoclide/coc.nvim', { 'branch': 'release' }
 
 call plug#end()
 
-
-" Jump to the last position when reopening a file
-au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
-
-" Common key mappings
-let mapleader = "\\"
-map <leader>n :NERDTreeToggle<CR>
-map <leader>m :make<CR>
-map <leader>p :CtrlP<CR>
-map <leader>v :Voom<CR>
-
-" NERDTree configuration
-" Exit Vim if NERDTree is the only window remaining in the only tab.
-autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
-" Close the tab if NERDTree is the only window remaining in it.
-autocmd BufEnter * if winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
-
-" Common plugin configurations
-let g:ctrlp_map = '<c-p>'
-let g:ctrlp_cmd = 'CtrlP'
-
-" Airline configuration
-let g:airline_powerline_fonts = 0
-
-" Vim-specific settings
+" ---- Visuals --------------------------------------------------------------
 syntax on
 filetype plugin indent on
 silent! colorscheme gruvbox
+let g:airline_powerline_fonts = 0
 
-" ALE configuration
-let g:airline#extensions#ale#enabled = 1
-" let g:ale_fix_on_save = 0  " Already set above on line 35
-let g:ale_fixers = {
-\   '*': ['remove_trailing_lines', 'trim_whitespace'],
-\   'cpp': ['clang-format'],
-\   'rust': ['rustfmt'],
-\   'javascript': ['eslint'],
-\   'python': ['black']
-\}
+" ---- Generic keymaps ------------------------------------------------------
+map <leader>n :NERDTreeToggle<CR>
+map <leader>m :make<CR>
+map <leader>p :CtrlP<CR>
 
-" ALE keybindings (Vim-specific)
-map <leader>l :ALEFix<CR>
-map <leader>c :ALEComplete<CR>
-map <leader>r :ALERename<CR>
-map <leader>g :ALEGoToDefinition<CR>
-map <leader>q :ALEPopulateQuickfix<CR>
-map <leader>-<Space> :AleCodeAction<CR>
+let g:ctrlp_map = '<c-p>'
+let g:ctrlp_cmd = 'CtrlP'
 
-" Open NERDTree on startup if no files specified
-function! StartUp()
-    if 0 == argc()
-        NERDTree
-    end
+" Jump to last position when reopening a file
+au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
+
+" Close vim if NERDTree is the only window remaining
+autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
+
+" ---- coc.nvim -------------------------------------------------------------
+let g:coc_global_extensions = ['coc-rust-analyzer', 'coc-json']
+
+" TAB cycles the popup; CR confirms; <C-Space> manually refreshes
+inoremap <silent><expr> <TAB>
+      \ coc#pum#visible() ? coc#pum#next(1) :
+      \ <SID>check_backspace() ? "\<Tab>" :
+      \ coc#refresh()
+inoremap <expr><S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
+inoremap <silent><expr> <CR> coc#pum#visible() ? coc#pum#confirm() : "\<CR>"
+inoremap <silent><expr> <C-Space> coc#refresh()
+
+function! s:check_backspace() abort
+  let col = col('.') - 1
+  return !col || getline('.')[col - 1] =~# '\s'
 endfunction
-"autocmd VimEnter * call StartUp()
+
+" LSP navigation
+nmap <silent> gd <Plug>(coc-definition)
+nmap <silent> gy <Plug>(coc-type-definition)
+nmap <silent> gi <Plug>(coc-implementation)
+nmap <silent> gr <Plug>(coc-references)
+
+" Hover documentation
+nnoremap <silent> K :call CocActionAsync('doHover')<CR>
+
+" Rename / code action / format
+nmap <leader>rn <Plug>(coc-rename)
+nmap <leader>ca <Plug>(coc-codeaction-cursor)
+nmap <leader>f  <Plug>(coc-format)
+
+" Diagnostics navigation
+nmap <silent> [g <Plug>(coc-diagnostic-prev)
+nmap <silent> ]g <Plug>(coc-diagnostic-next)
+
+" Show signature help on placeholder jump
+autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')
+
+" ---- Rust -----------------------------------------------------------------
+" rust-analyzer (via coc-rust-analyzer) handles formatting; disable rust.vim's
+" autoformat so we don't double-format on save.
+let g:rustfmt_autosave = 0
