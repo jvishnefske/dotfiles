@@ -2,30 +2,33 @@
 - name: Install dotfiles configuration
   hosts: localhost
   connection: local
-  gather_facts: yes
+  gather_facts: true
   become: false
   vars:
     dotfiles_dir: "{{ ansible_facts['env']['HOME'] }}"
     home_dir: "{{ ansible_facts['env']['HOME'] }}"
-    # Python package manager: "pdm" (default) or "uv"
     python_pkg_manager: "{{ pkg_manager | default('pdm') }}"
 
   tasks:
     - name: Check if rustup is installed
       ansible.builtin.command: which rustup
       register: rustup_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
 
     - name: Install rustup
-      ansible.builtin.shell: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source {{ home_dir }}/.cargo/env
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source {{ home_dir }}/.cargo/env
+      changed_when: true
       when: rustup_check.rc != 0
       tags: rust
 
     - name: Update rustup
       ansible.builtin.command: rustup update
+      changed_when: true
       when: rustup_check.rc == 0 and update_rustup | default(false)
       tags: rust
 
@@ -34,17 +37,22 @@
     - name: Check if pdm is installed
       ansible.builtin.command: which pdm
       register: pdm_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
       when: python_pkg_manager == "pdm"
 
     - name: Install pdm
-      ansible.builtin.shell: curl -sSL https://pdm-project.org/install-pdm.py | python3 -
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          curl -sSL https://pdm-project.org/install-pdm.py | python3 -
+      changed_when: true
       when: python_pkg_manager == "pdm" and pdm_check.rc != 0 and ansible_facts['system'] in ["Linux", "Darwin"]
       tags: python
 
     - name: Update pdm
       ansible.builtin.command: pdm self update
+      changed_when: true
       when: python_pkg_manager == "pdm" and pdm_check.rc == 0 and update_pdm | default(false)
       tags: python
 
@@ -53,17 +61,22 @@
     - name: Check if uv is installed
       ansible.builtin.command: which uv
       register: uv_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
       when: python_pkg_manager == "uv"
 
     - name: Install uv (which includes uvx)
-      ansible.builtin.shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+      changed_when: true
       when: python_pkg_manager == "uv" and uv_check.rc != 0
       tags: python
 
     - name: Update uv
       ansible.builtin.command: uv self update
+      changed_when: true
       when: python_pkg_manager == "uv" and uv_check.rc == 0 and update_uv | default(false)
       tags: python
 
@@ -76,7 +89,7 @@
       tags: github
 
     - name: Check if gh (GitHub CLI) is installed (macOS)
-      ansible.builtin.shell: command -v gh
+      ansible.builtin.command: command -v gh
       register: gh_check_macos
       failed_when: false
       changed_when: false
@@ -86,7 +99,7 @@
       ansible.builtin.unarchive:
         src: "https://github.com/cli/cli/releases/download/v2.81.0/gh_2.81.0_macOS_amd64.tar.gz"
         dest: "/tmp"
-        remote_src: yes
+        remote_src: true
         creates: "/tmp/gh_2.81.0_macOS_amd64"
       when: install_github_cli | default(false) and gh_check_macos.rc != 0 and ansible_facts['system'] == "Darwin"
       tags: github
@@ -96,7 +109,7 @@
         src: "/tmp/gh_2.81.0_macOS_amd64/bin/gh"
         dest: "{{ home_dir }}/.local/bin/gh"
         mode: '0755'
-        remote_src: yes
+        remote_src: true
       when: install_github_cli | default(false) and gh_check_macos.rc != 0 and ansible_facts['system'] == "Darwin"
       tags: github
 
@@ -111,37 +124,40 @@
       ansible.builtin.command: which go
       register: go_check
       failed_when: false
-      #ignore_errors: true
       changed_when: false
 
     - name: Check Go version
-      ansible.builtin.shell: go version | grep -o 'go[0-9.]*' | cut -c3-
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          go version | grep -o 'go[0-9.]*' | cut -c3-
       register: go_version_check
       when: go_check.rc == 0
       changed_when: false
-      ignore_errors: yes
-      changed_when: false
+      failed_when: false
 
     - name: Check if NATS CLI is installed
       ansible.builtin.command: which nats
       register: nats_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
       when: go_check.rc == 0 and install_nats_tools | default(false)
 
     - name: Install NATS tools
-      ansible.builtin.shell: |
-        go install github.com/nats-io/natscli/nats@latest
-        go install github.com/nats-io/nats-server/v2@main
-        go install github.com/nats-io/nkeys/nk@latest
+      ansible.builtin.shell:
+        cmd: |
+          go install github.com/nats-io/natscli/nats@latest
+          go install github.com/nats-io/nats-server/v2@main
+          go install github.com/nats-io/nkeys/nk@latest
+      register: nats_install
+      changed_when: nats_install.rc == 0
+      failed_when: false
       when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows" and install_nats_tools | default(false) and nats_check.rc != 0
-      ignore_errors: yes
       tags: nats
 
     - name: Initialize git submodules
-      ansible.builtin.shell: git submodule init && git submodule update
-      args:
-        chdir: "{{ dotfiles_dir }}"
+      ansible.builtin.shell:
+        cmd: git --git-dir="{{ dotfiles_dir }}/.dotfiles" --work-tree="{{ dotfiles_dir }}" submodule init && git --git-dir="{{ dotfiles_dir }}/.dotfiles" --work-tree="{{ dotfiles_dir }}" submodule update
       register: submodule_result
       changed_when: "'Cloning into' in submodule_result.stderr or 'Submodule path' in submodule_result.stdout"
       tags: git
@@ -168,7 +184,7 @@
     - name: Check if Vim is installed
       ansible.builtin.command: which vim
       register: vim_check
-      ignore_errors: yes
+      failed_when: false
       changed_when: false
 
     - name: Check if Vim-Plug is installed for Vim
@@ -191,8 +207,8 @@
       register: vim_plugged_stat
 
     - name: Install Vim plugins
-      ansible.builtin.shell: |
-        vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
+      ansible.builtin.command: vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
+      changed_when: true
       when: vim_check.rc == 0
       tags: vim-plugins
 
@@ -216,8 +232,8 @@
       register: nvim_plugged_stat
 
     - name: Install Neovim plugins
-      ansible.builtin.shell: |
-        nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
+      ansible.builtin.command: nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
+      changed_when: true
       when: nvim_check.rc == 0
       tags: nvim-plugins
 

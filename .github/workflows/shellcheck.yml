@@ -2,9 +2,9 @@ name: ShellCheck
 
 on:
   push:
-    branches: [master, dev]
+    branches: [main, dev-bare-repo]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   shellcheck:
@@ -18,3 +18,4 @@ jobs:
         with:
           scandir: "."
           severity: warning
+          ignore_paths: "ohmyzsh virtualenvwrapper.sh virtualenvwrapper_lazy.sh"

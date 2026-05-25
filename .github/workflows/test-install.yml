@@ -2,9 +2,9 @@ name: Test Install Script
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [ main, dev-bare-repo ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   test-install:
