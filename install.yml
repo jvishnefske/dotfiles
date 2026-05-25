@@ -5,8 +5,10 @@
   gather_facts: yes
   become: false
   vars:
-    dotfiles_dir: "{{ ansible_env.PWD }}"
-    home_dir: "{{ ansible_env.HOME }}"
+    dotfiles_dir: "{{ ansible_facts.env.HOME }}"
+    home_dir: "{{ ansible_facts.env.HOME }}"
+    # Python package manager: "pdm" (default) or "uv"
+    python_pkg_manager: "{{ pkg_manager | default('pdm') }}"
 
   tasks:
     - name: Check if rustup is installed
@@ -27,20 +29,42 @@
       when: rustup_check.rc == 0 and update_rustup | default(false)
       tags: rust
 
+    # --- PDM (default) ---
+
+    - name: Check if pdm is installed
+      ansible.builtin.command: which pdm
+      register: pdm_check
+      ignore_errors: yes
+      changed_when: false
+      when: python_pkg_manager == "pdm"
+
+    - name: Install pdm
+      ansible.builtin.shell: curl -sSL https://pdm-project.org/install-pdm.py | python3 -
+      when: python_pkg_manager == "pdm" and pdm_check.rc != 0 and ansible_facts['system'] in ["Linux", "Darwin"]
+      tags: python
+
+    - name: Update pdm
+      ansible.builtin.command: pdm self update
+      when: python_pkg_manager == "pdm" and pdm_check.rc == 0 and update_pdm | default(false)
+      tags: python
+
+    # --- uv (alternative) ---
+
     - name: Check if uv is installed
       ansible.builtin.command: which uv
       register: uv_check
       ignore_errors: yes
       changed_when: false
+      when: python_pkg_manager == "uv"
 
     - name: Install uv (which includes uvx)
       ansible.builtin.shell: curl -LsSf https://astral.sh/uv/install.sh | sh
-      when: uv_check.rc != 0
+      when: python_pkg_manager == "uv" and uv_check.rc != 0
       tags: python
 
     - name: Update uv
       ansible.builtin.command: uv self update
-      when: uv_check.rc == 0 and update_uv | default(false)
+      when: python_pkg_manager == "uv" and uv_check.rc == 0 and update_uv | default(false)
       tags: python
 
     - name: Create ~/.local/bin directory
@@ -96,13 +120,21 @@
       when: go_check.rc == 0
       changed_when: false
       ignore_errors: yes
+      changed_when: false
+
+    - name: Check if NATS CLI is installed
+      ansible.builtin.command: which nats
+      register: nats_check
+      ignore_errors: yes
+      changed_when: false
+      when: go_check.rc == 0 and install_nats_tools | default(false)
 
     - name: Install NATS tools
       ansible.builtin.shell: |
         go install github.com/nats-io/natscli/nats@latest
-        go install github.com/nats-io/nats-server/v2@main  
+        go install github.com/nats-io/nats-server/v2@main
         go install github.com/nats-io/nkeys/nk@latest
-      when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows" and install_nats_tools | default(false)
+      when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows" and install_nats_tools | default(false) and nats_check.rc != 0
       ignore_errors: yes
       tags: nats
 
@@ -123,72 +155,9 @@
         - "{{ home_dir }}/.config"
         - "{{ home_dir }}/.config/zsh"
         - "{{ home_dir }}/.config/nvim"
+        - "{{ home_dir }}/.vim"
+        - "{{ home_dir }}/.vim/autoload"
         - "{{ home_dir }}/.local/share/nvim/site/autoload"
-
-    - name: Check if files exist and are not symlinks
-      ansible.builtin.stat:
-        path: "{{ item }}"
-      register: existing_files
-      loop:
-        - "{{ home_dir }}/.profile"
-        - "{{ home_dir }}/.bashrc"
-        - "{{ home_dir }}/.zshrc"
-        - "{{ home_dir }}/.gitconfig"
-        - "{{ home_dir }}/.vimrc"
-
-    - name: Backup existing configuration files
-      ansible.builtin.copy:
-        src: "{{ item.item }}"
-        dest: "{{ item.item }}.backup"
-        remote_src: yes
-      when: item.stat.exists and not item.stat.islnk
-      loop: "{{ existing_files.results }}"
-      ignore_errors: yes
-
-    - name: Create symbolic links for shell configuration files
-      ansible.builtin.file:
-        src: "{{ dotfiles_dir }}/{{ item.src }}"
-        dest: "{{ item.dest }}"
-        state: link
-        force: yes
-      loop:
-        - { src: ".profile", dest: "{{ home_dir }}/.profile" }
-        - { src: ".bashrc", dest: "{{ home_dir }}/.bashrc" }
-        - { src: ".zshrc", dest: "{{ home_dir }}/.zshrc" }
-        - { src: "ohmyzsh", dest: "{{ home_dir }}/.oh-my-zsh" }
-        - { src: "zsh", dest: "{{ home_dir }}/.config/zsh" }
-      tags: shell
-
-    - name: Create symbolic link for Git configuration
-      ansible.builtin.file:
-        src: "{{ dotfiles_dir }}/.gitconfig"
-        dest: "{{ home_dir }}/.gitconfig"
-        state: link
-        force: yes
-      tags: git
-
-    - name: Check if .vim directory exists
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.vim"
-      register: vim_dir_stat
-      tags: vim
-
-    - name: Backup existing .vim directory
-      ansible.builtin.command:
-        cmd: mv "{{ home_dir }}/.vim" "{{ home_dir }}/.vim.backup"
-      when: vim_dir_stat.stat.exists and vim_dir_stat.stat.isdir and not vim_dir_stat.stat.islnk
-      tags: vim
-
-    - name: Create symbolic links for Vim configuration
-      ansible.builtin.file:
-        src: "{{ dotfiles_dir }}/{{ item.src }}"
-        dest: "{{ item.dest }}"
-        state: link
-        force: yes
-      loop:
-        - { src: "vim", dest: "{{ home_dir }}/.vim" }
-        - { src: ".vimrc", dest: "{{ home_dir }}/.vimrc" }
-      tags: vim
 
     - name: Check if Neovim is installed
       ansible.builtin.command: which nvim
@@ -196,28 +165,16 @@
       failed_when: false
       changed_when: false
 
-    - name: Create symbolic link for Neovim configuration
-      ansible.builtin.file:
-        src: "{{ dotfiles_dir }}/nvim"
-        dest: "{{ home_dir }}/.config/nvim"
-        state: link
-        force: yes
-      when: nvim_check.rc == 0
-      tags: nvim
-
     - name: Check if Vim is installed
       ansible.builtin.command: which vim
       register: vim_check
       ignore_errors: yes
       changed_when: false
-      tags: vim-plug
 
-    - name: Create Vim autoload directory
-      ansible.builtin.file:
-        path: "{{ dotfiles_dir }}/vim/autoload"
-        state: directory
-        mode: '0755'
-      tags: vim-plug
+    - name: Check if Vim-Plug is installed for Vim
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.vim/autoload/plug.vim"
+      register: vim_plug_stat
 
     - name: Download Vim-Plug for Vim
       ansible.builtin.get_url:
@@ -225,14 +182,24 @@
         dest: "{{ home_dir }}/.vim/autoload/plug.vim"
         mode: '0644'
       register: vim_plug_download
-      when: vim_check.rc == 0
+      when: vim_check.rc == 0 and not vim_plug_stat.stat.exists
       tags: vim-plug
+
+    - name: Check if Vim plugins are installed
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.vim/plugged"
+      register: vim_plugged_stat
 
     - name: Install Vim plugins
       ansible.builtin.shell: |
         vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
-      when: vim_check.rc == 0 and vim_plug_download is succeeded
+      when: vim_check.rc == 0
       tags: vim-plugins
+
+    - name: Check if Vim-Plug is installed for Neovim
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.local/share/nvim/site/autoload/plug.vim"
+      register: nvim_plug_stat
 
     - name: Download Vim-Plug for Neovim
       ansible.builtin.get_url:
@@ -240,13 +207,18 @@
         dest: "{{ home_dir }}/.local/share/nvim/site/autoload/plug.vim"
         mode: '0644'
       register: nvim_plug_download
-      when: nvim_check.rc == 0
+      when: nvim_check.rc == 0 and not nvim_plug_stat.stat.exists
       tags: nvim-plug
+
+    - name: Check if Neovim plugins are installed
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.local/share/nvim/site/plugged"
+      register: nvim_plugged_stat
 
     - name: Install Neovim plugins
       ansible.builtin.shell: |
         nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
-      when: nvim_check.rc == 0 and nvim_plug_download is succeeded
+      when: nvim_check.rc == 0
       tags: nvim-plugins
 
     - name: Display completion message
