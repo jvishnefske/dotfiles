@@ -18,88 +18,121 @@ cd ~/.dotfiles
 - **Development Tools**: Python virtual environment wrapper, NATS tools
 - **System Configuration**: Network mounting, systemd services
 - **Automated Installation**: Ansible-based setup with dependency management
+Personal terminal and development environment configuration managed as a bare git repository.
 
-### Prerequisites
+## Quick Start
 
-The installer will automatically check for and offer to install `uv` if not present. You can also install it manually:
+Bootstrap on a fresh machine (no clone needed):
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -Lks https://raw.githubusercontent.com/jvishnefske/dotfiles/main/install.sh | bash
 ```
 
-The installer will:
-- Check for `uv` and prompt to install if missing
-- Use Ansible (via `uvx`) to configure your system
-- Create symbolic links for all configuration files
-- Install Vim/Neovim plugins automatically
-- Set up development tools (Rust, Python, Go, NATS)
+Or manually:
+
+```bash
+git clone --bare https://github.com/jvishnefske/dotfiles.git $HOME/.cfg
+alias dotfiles='git --git-dir=$HOME/.cfg --work-tree=$HOME'
+dotfiles config --local status.showUntrackedFiles no
+dotfiles checkout
+```
+
+If checkout fails due to existing files, back them up:
+
+```bash
+mkdir -p $HOME/.dotfiles-backup
+dotfiles checkout 2>&1 | grep -E "^\s+" | awk '{print $1}' | \
+  xargs -I{} bash -c 'mkdir -p "$HOME/.dotfiles-backup/$(dirname {})" && mv "$HOME/{}" "$HOME/.dotfiles-backup/{}"'
+dotfiles checkout
+```
+
+## How It Works
+
+This repo uses the bare git repository technique:
+
+- `$HOME/.cfg` is a bare git repo (no working tree of its own)
+- `$HOME` is the working tree — dotfiles live directly where programs expect them
+- The `dotfiles` alias wraps git with `--git-dir` and `--work-tree` flags
+- `status.showUntrackedFiles no` keeps `git status` clean (only shows tracked files)
+
+No symlinks. No copying. Files are managed in-place.
+
+## Daily Usage
+
+```bash
+dotfiles status
+dotfiles add ~/.vimrc
+dotfiles commit -m "update vim config"
+dotfiles push
+```
 
 ## What Gets Installed
 
-### Shell Environment
-- Zsh with Oh-My-Zsh framework
-- Custom aliases and functions
-- Enhanced prompt and completion
+The `install.sh` bootstrap script:
+1. Clones the bare repo into `$HOME/.cfg`
+2. Checks out dotfiles into `$HOME`
+3. Adds the `dotfiles` alias to `.bashrc` and `.zshrc`
+4. Installs `uv` (needed to run ansible)
+5. Runs the ansible playbook for additional tooling
 
-### Development Tools
+### Ansible Playbook
+
+The playbook installs development tools (idempotent — safe to re-run):
+
 - **Rust**: rustup toolchain manager
-- **Python**: uv package manager and uvx runner
-- **Go**: NATS ecosystem tools (nats-cli, nats-server, nkeys)
-- **Vim/Neovim**: Vim-Plug plugin manager with automatic plugin installation
+- **Python**: pdm (default) or uv (`-e pkg_manager=uv`)
+- **GitHub CLI**: gh
+- **Go tools**: NATS ecosystem (`-e install_nats_tools=true`)
+- **Vim/Neovim**: Vim-Plug + plugins
 
-### Configuration Files
-All configuration files are symlinked from this repository to your home directory:
-- `~/.bashrc` → `.bashrc`
-- `~/.zshrc` → `.zshrc`
-- `~/.profile` → `.profile`
-- `~/.gitconfig` → `.gitconfig`
-- `~/.vimrc` → `.vimrc`
-- `~/.vim/common.vim` → `vim/common.vim`
-- `~/.config/nvim/` → `nvim/`
-- `~/.oh-my-zsh/` → `ohmyzsh/`
-
-## Manual Usage
-
-### Using Ansible Directly
-
-You can run specific parts of the setup:
+Run specific tags:
 
 ```bash
-# Install only Python tools
-uvx --from ansible-core ansible-playbook install.yml --tags python
-
-# Install only shell configuration
-uvx --from ansible-core ansible-playbook install.yml --tags shell
-
-# Install only Vim/Neovim
-uvx --from ansible-core ansible-playbook install.yml --tags vim,nvim
+uvx --from ansible-core ansible-playbook ~/install.yml --tags python
+uvx --from ansible-core ansible-playbook ~/install.yml --tags rust
+uvx --from ansible-core ansible-playbook ~/install.yml --tags vim,nvim
 ```
 
-### Legacy Installation
+## Tracked Files
 
-The Python installer (`install.py`) is deprecated but still functional. It will show a deprecation warning and recommend using `install.sh` instead.
+```
+~/.bashrc           # Bash configuration
+~/.zshrc            # Zsh configuration
+~/.profile          # Shared shell profile
+~/.gitconfig        # Git configuration
+~/.vimrc            # Vim configuration
+~/vim/              # Vim extras
+~/nvim/             # Neovim configuration
+~/ohmyzsh/          # Oh-My-Zsh framework (submodule)
+~/install.sh        # Bootstrap script
+~/install.yml       # Ansible playbook
+```
 
-## Customization
+## Machine-Specific Config
 
-- Edit configuration files directly in the repository
-- Changes are immediately reflected via symbolic links
-- Add custom Vim plugins to `.vimrc`
-- Modify shell aliases in `.zshrc` or `.bashrc`
-- Update Ansible playbooks for system-level changes
+For settings that differ per machine, use local override files (not tracked):
+
+```bash
+# In .zshrc or .bashrc
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
+```
+
+Or git's includeIf for per-directory git identity:
+
+```gitconfig
+[includeIf "gitdir:~/work/"]
+    path = ~/.gitconfig.work
+```
 
 ## Platform Support
 
-- **Primary**: macOS, Linux
-- **Tested**: Ubuntu, CentOS/RHEL, macOS
-- **Requirements**: curl, bash, git
+- macOS, Linux (Debian, RHEL)
+- Requirements: curl, bash, git, python3
 
 ## Troubleshooting
 
-- **uv not found**: The installer will prompt to install it automatically
-- **Ansible errors**: Ensure `uvx --from ansible-core` works in your environment
-- **Permission issues**: Some system configurations may require sudo access
-- **Plugin installation fails**: Run `:PlugInstall` manually in Vim/Neovim
-
-## Contributing
-
-This is a personal dotfiles repository, but feel free to fork and adapt for your own use. Pull requests for bug fixes are welcome.
+- **Checkout conflicts**: Back up existing files (see Quick Start above)
+- **uv not found**: The installer prompts to install it
+- **Ansible errors**: Ensure `uvx --from ansible-core` works
+- **Plugin install fails**: Run `:PlugInstall` manually in Vim/Neovim
+- **IDE doesn't see repo**: VSCode doesn't detect bare repos — use the terminal alias

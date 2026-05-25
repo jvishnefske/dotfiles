@@ -5,8 +5,8 @@
   gather_facts: yes
   become: false
   vars:
-    dotfiles_dir: "{{ ansible_facts.env.HOME }}"
-    home_dir: "{{ ansible_facts.env.HOME }}"
+    dotfiles_dir: "{{ ansible_facts['env']['HOME'] }}"
+    home_dir: "{{ ansible_facts['env']['HOME'] }}"
     # Python package manager: "pdm" (default) or "uv"
     python_pkg_manager: "{{ pkg_manager | default('pdm') }}"
 
