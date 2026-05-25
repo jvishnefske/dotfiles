@@ -1,8 +1,8 @@
 ---
 - name: Setup Vcpkg
   hosts: all
-  gather_facts: no
-  become: no
+  gather_facts: false
+  become: false
 
   vars:
     vcpkg_dir: "{{ lookup('env', 'HOME') }}/.local/vcpkg"
@@ -24,13 +24,12 @@
         repo: "{{ vcpkg_repo_url }}"
         dest: "{{ vcpkg_dir }}"
         version: master
-        accept_hostkey: yes
+        accept_hostkey: true
 
     - name: Run vcpkg bootstrap script
-      ansible.builtin.shell:
-        cmd: "./bootstrap-vcpkg.sh"
+      ansible.builtin.command:
+        cmd: ./bootstrap-vcpkg.sh
         chdir: "{{ vcpkg_dir }}"
-      args:
         creates: "{{ vcpkg_dir }}/vcpkg"
 
     - name: Check if .zshrc exists
@@ -66,4 +65,3 @@
         - "# Vcpkg environment variables"
         - "{{ vcpkg_env_var }}"
         - "{{ vcpkg_path_var }}"
-

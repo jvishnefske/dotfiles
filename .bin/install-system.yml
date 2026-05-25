@@ -2,14 +2,14 @@
 - name: Install system-level packages (requires root)
   hosts: localhost
   connection: local
-  gather_facts: yes
+  gather_facts: true
   become: true
   vars:
     home_dir: "{{ ansible_facts.env.HOME }}"
 
   tasks:
     - name: Check if gh (GitHub CLI) is installed
-      ansible.builtin.shell: command -v gh
+      ansible.builtin.command: command -v gh
       register: gh_check
       failed_when: false
       changed_when: false
@@ -36,7 +36,7 @@
       ansible.builtin.apt:
         name: gh
         state: present
-        update_cache: yes
+        update_cache: true
       when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
       tags: github
 
@@ -49,6 +49,7 @@
 
     - name: Add GitHub CLI repository (RHEL/CentOS)
       ansible.builtin.command: dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+      changed_when: true
       when: install_github_cli | default(false) and gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
       tags: github
 

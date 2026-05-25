@@ -7,6 +7,7 @@ set -e
 DOTFILES_REPO="https://github.com/jvishnefske/dotfiles.git"
 DOTFILES_DIR="$HOME/.dotfiles"
 BACKUP_DIR="$HOME/.dotfiles-backup"
+# shellcheck disable=SC2016
 DOTFILES_ALIAS='alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"'
 
 # ---------- Bare repo setup ----------
@@ -68,9 +69,11 @@ install_alias() {
     if grep -qF 'alias dotfiles=' "$shell_rc"; then
         echo "Dotfiles alias already present in $shell_rc"
     else
-        echo "" >> "$shell_rc"
-        echo "# Dotfiles bare repo alias" >> "$shell_rc"
-        echo "$DOTFILES_ALIAS" >> "$shell_rc"
+        {
+            echo ""
+            echo "# Dotfiles bare repo alias"
+            echo "$DOTFILES_ALIAS"
+        } >> "$shell_rc"
         echo "Added dotfiles alias to $shell_rc"
     fi
 }
@@ -95,6 +98,7 @@ install_uv() {
         curl -LsSf https://astral.sh/uv/install.sh | sh
 
         if [ -f "$HOME/.cargo/env" ]; then
+            # shellcheck source=/dev/null
             source "$HOME/.cargo/env"
         fi
         export PATH="$HOME/.cargo/bin:$PATH"
