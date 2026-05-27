@@ -176,9 +176,13 @@
       when: go_check.rc == 0
       tags: go-tools
 
-    - name: Initialize git submodules
+    - name: Initialize git submodules  # noqa: command-instead-of-module
       ansible.builtin.shell:
-        cmd: git --git-dir="{{ dotfiles_dir }}/.dotfiles" --work-tree="{{ dotfiles_dir }}" submodule init && git --git-dir="{{ dotfiles_dir }}/.dotfiles" --work-tree="{{ dotfiles_dir }}" submodule update
+        cmd: >-
+          git --git-dir="{{ dotfiles_dir }}/.dotfiles"
+          --work-tree="{{ dotfiles_dir }}" submodule init &&
+          git --git-dir="{{ dotfiles_dir }}/.dotfiles"
+          --work-tree="{{ dotfiles_dir }}" submodule update
       register: submodule_result
       changed_when: "'Cloning into' in submodule_result.stderr or 'Submodule path' in submodule_result.stdout"
       tags: git
