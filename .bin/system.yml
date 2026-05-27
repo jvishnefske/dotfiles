@@ -27,12 +27,12 @@
         state: present
 
     - name: Install npm tools (prettier, eslint)
-      ansible.builtin.npm:
-        name: "{{ item }}"
-        global: true
+      ansible.builtin.command: npm install -g {{ item }}
       loop:
         - prettier
         - eslint
+      register: npm_install
+      changed_when: "'added' in npm_install.stdout"
 
     - name: Display completion message
       ansible.builtin.debug:
