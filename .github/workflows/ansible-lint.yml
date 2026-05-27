@@ -17,4 +17,4 @@ jobs:
         run: pip install ansible-lint
 
       - name: Run ansible-lint
-        run: ansible-lint install.yml install-system.yml system.yml setup_vcpkg.yml
+        run: ansible-lint .bin/install.yml .bin/install-system.yml .bin/system.yml .bin/setup_vcpkg.yml
