@@ -155,6 +155,27 @@
       when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows" and install_nats_tools | default(false) and nats_check.rc != 0
       tags: nats
 
+    - name: Install Python ALE tools
+      ansible.builtin.command: uvx --from uv uv tool install {{ item }}
+      loop:
+        - pyright
+        - ruff
+      register: py_tool_install
+      changed_when: "'Installed' in py_tool_install.stdout"
+      failed_when: false
+      tags: python-tools
+
+    - name: Install Go ALE tools
+      ansible.builtin.command: go install {{ item.pkg }}
+      loop:
+        - { pkg: "golang.org/x/tools/gopls@latest", bin: "gopls" }
+        - { pkg: "github.com/golangci/golangci-lint/cmd/golangci-lint@latest", bin: "golangci-lint" }
+        - { pkg: "golang.org/x/tools/cmd/goimports@latest", bin: "goimports" }
+      args:
+        creates: "{{ home_dir }}/go/bin/{{ item.bin }}"
+      when: go_check.rc == 0
+      tags: go-tools
+
     - name: Initialize git submodules
       ansible.builtin.shell:
         cmd: git --git-dir="{{ dotfiles_dir }}/.dotfiles" --work-tree="{{ dotfiles_dir }}" submodule init && git --git-dir="{{ dotfiles_dir }}/.dotfiles" --work-tree="{{ dotfiles_dir }}" submodule update
@@ -209,7 +230,7 @@
     - name: Install Vim plugins
       ansible.builtin.command: vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
       changed_when: true
-      when: vim_check.rc == 0
+      when: vim_check.rc == 0 and not vim_plugged_stat.stat.exists
       tags: vim-plugins
 
     - name: Check if Vim-Plug is installed for Neovim
@@ -234,7 +255,7 @@
     - name: Install Neovim plugins
       ansible.builtin.command: nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
       changed_when: true
-      when: nvim_check.rc == 0
+      when: nvim_check.rc == 0 and not nvim_plugged_stat.stat.exists
       tags: nvim-plugins
 
     - name: Display completion message

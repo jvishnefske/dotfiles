@@ -118,7 +118,9 @@ install_uv() {
 # ---------- Ansible ----------
 
 run_ansible() {
-    local playbook="$HOME/install.yml"
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local playbook="$script_dir/install.yml"
 
     if [ ! -f "$playbook" ]; then
         echo "Warning: install.yml not found, skipping ansible playbook."
