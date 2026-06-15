@@ -5,6 +5,8 @@ export PS1="\[\e[32m\]\u@\h:\W\\$\[\e[m\]"
 [ -x /usr/bin/lesspipe.sh ] && eval "$(SHELL=/bin/sh lesspipe.sh)"
 export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$HOME/src
+export VIRTUALENVWRAPPER_SCRIPT=$HOME/.bin/virtualenvwrapper.sh
+[ -f $VIRTUALENVWRAPPER_SCRIPT ] && source $VIRTUALENVWRAPPER_SCRIPT
 export PCLINT_PATH=$HOME/bin/pclint9/
 export GOPATH=$HOME
 alias vi=vim
@@ -19,5 +21,10 @@ export PATH="/home/j/.local/bin:$PATH"
 export VCPKG_ROOT="/home/j/.local/vcpkg"
 export PATH="$VCPKG_ROOT:$PATH"
 
+# Dotfiles bare repo alias — manage tracked dotfiles with: dotfiles <git-cmd>
+alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"
+
+# Go tool binaries for vim/ALE (gopls, goimports, shfmt); cargo bin added above
+export PATH="$HOME/go/bin:$PATH"
+
 . "$HOME/.local/bin/env"
-. "/Users/johnvishnefske/.deno/env"

@@ -1,5 +1,3 @@
-# Add deno completions to search path
-if [[ ":$FPATH:" != *":$HOME/.zsh/completions:"* ]]; then export FPATH="$HOME/.zsh/completions:$FPATH"; fi
 # Path to your oh-my-zsh installation
 export ZSH="$HOME/.oh-my-zsh"
 
@@ -19,22 +17,32 @@ COMPLETION_WAITING_DOTS="true"
 DISABLE_UNTRACKED_FILES_DIRTY="true"
 
 # Carefully selected plugins for a balance of features and speed
-    #docker
-    #docker-compose
 plugins=(
     git
- #   web-search
+    web-search
     pip
-  #  jsontools
-  #  taskwarrior
-  #  ssh-agent
+    jsontools
+    taskwarrior
     systemd
     colored-man-pages
     colorize
     command-not-found
-  #  dnf
+    dnf
     dotenv
 )
+
+# Load docker plugins only when docker is installed (otherwise the docker
+# completion plugin errors with "command not found: docker").
+if command -v docker &>/dev/null; then
+    plugins+=(docker)
+    command -v docker-compose &>/dev/null && plugins+=(docker-compose)
+fi
+
+# Load ssh-agent only when there is at least one SSH private key to manage
+# (avoids an unnecessary agent/passphrase prompt on machines without keys).
+if [ -n "$(find "$HOME/.ssh" -maxdepth 1 -name 'id_*' ! -name '*.pub' 2>/dev/null | head -1)" ]; then
+    plugins+=(ssh-agent)
+fi
 
 # Load Oh My Zsh
 source $ZSH/oh-my-zsh.sh
@@ -73,7 +81,7 @@ export MANPATH="/usr/local/man:$MANPATH"
 #export PATH=$PATH:$HOME/.local/ollama/bin
 #export PATH=$HOME/build-scripts:$HOME/.local/bin:~/.local/venv/bin:$HOME/.local/build/depot_tools:$PATH
 
-if [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then . "$HOME/.nix-profile/etc/profile.d/nix.sh"; fi
+if [ -e /home/cnh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/cnh/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
 # alias code=flatpak run com.visualstudio.code
 #alias docker-compose="docker compose"
 #$. "$HOME/.cargo/env"
@@ -82,29 +90,14 @@ export PATH=$PATH:$HOME/.local/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/
 export PATH=$PATH:$HOME/.local/node-v22.17.0-linux-x64/bin
 
 # Vcpkg environment variables
-export VCPKG_ROOT="$HOME/.local/vcpkg"
+export VCPKG_ROOT="/home/j/.local/vcpkg"
 export PATH="$VCPKG_ROOT:$PATH"
 
-. "$HOME/.local/bin/env"
+# Dotfiles bare repo alias — manage tracked dotfiles with: dotfiles <git-cmd>
+alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"
 
-export NVM_DIR="$HOME/.nvm"
-nvm() {
-  unset -f nvm node npm npx
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-  nvm "$@"
-}
-node() { unset -f nvm node npm npx; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"; node "$@"; }
-npm()  { unset -f nvm node npm npx; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"; npm "$@"; }
-npx()  { unset -f nvm node npm npx; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"; npx "$@"; }
-[ -f "$HOME/.elan/env" ] && . "$HOME/.elan/env"
+# Tool binaries for vim/ALE fixers, linters and language servers
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"   # rustfmt, rust-analyzer, stylua
+export PATH="$HOME/go/bin:$PATH"                     # gopls, goimports, shfmt
 
-
-# BEGIN opam configuration
-# This is useful if you're using opam as it adds:
-#   - the correct directories to the PATH
-#   - auto-completion for the opam binary
-# This section can be safely removed at any time if needed.
-[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null
-# END opam configuration
-[ -f "$HOME/.deno/env" ] && . "$HOME/.deno/env"
+. "$HOME/.local/bin/env"                             # ~/.local/bin: prettier, black, pyright, ...

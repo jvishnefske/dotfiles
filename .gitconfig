@@ -1,19 +1,13 @@
 [user]
-	name = John Vishnefske
-	email = jvishnefske@gmail.com
-[credential "https://github.com"]
-	helper =
-	helper = !/usr/bin/gh auth git-credential
-[credential "https://gist.github.com"]
-	helper =
-	helper = !/usr/bin/gh auth git-credential
+	name = "John Vishnefske"
+	email = "jvishnefske@gmail.com"
 [init]
 	defaultBranch = main
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
 [core]
 	autocrlf = input
-[color]
-	ui = auto
-[pull]
-	ff = only
-[push]
-	autoSetupRemote = true
