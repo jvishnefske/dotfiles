@@ -6,7 +6,7 @@ pathadd() {
 export PATH=/usr/bin:/bin:/usr/local/bin
 export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:$HOME/.local/bin:$PATH
 #[ -x $HOME/.dotfiles/auto-nfs.sh ] && $HOME/.dotfiles/auto-nfs.sh 2>&1 >/dev/null
-[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+    . "$HOME/.cargo/env"
 
 pathadd() {
     if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
@@ -21,6 +21,3 @@ pathadd $HOME/.local/node-v22.17.0-linux-x64/bin
 pathadd /opt/rocm-6.2.0/lib/llvm/bin/
 
 . "$HOME/.local/bin/env"
-
-export PATH="$HOME/.elan/bin:$PATH"
-[ -f "$HOME/.deno/env" ] && . "$HOME/.deno/env"
