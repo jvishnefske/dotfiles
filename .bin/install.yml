@@ -287,90 +287,121 @@
 
     # ------------------------------------------------------------------
     # ALE fixers, linters and language-server "completers"
-    # Each task guards on the relevant tool manager so it is a no-op when
-    # that manager is absent, and can be run on its own with `--tags ale`.
+    # npm / cargo / Homebrew use community.general modules (truly idempotent:
+    # they only install what is missing and report changed accurately).
+    # Go / uv / rustup have no modules, so they stay shell with presence
+    # guards + an honest changed_when.
+    # Requires the community.general collection: run this playbook via
+    # `uvx --from ansible ansible-playbook` (the ansible package bundles it),
+    # not `--from ansible-core`.
     # ------------------------------------------------------------------
+    - name: Check if npm is available
+      ansible.builtin.shell: command -v npm
+      register: npm_check
+      changed_when: false
+      failed_when: false
+      tags: ale, ale-npm
+
     - name: Point npm at a user-writable global prefix when needed
       ansible.builtin.shell: |
-        command -v npm >/dev/null 2>&1 || { echo "npm not found, skipping"; exit 0; }
         prefix="$(npm config get prefix)"
         if [ ! -w "$prefix" ]; then
           mkdir -p "$HOME/.local"
           npm config set prefix "$HOME/.local"
-          echo "npm global prefix set to $HOME/.local (was $prefix)"
+          echo "CHANGED prefix -> $HOME/.local (was $prefix)"
         fi
-      changed_when: false
+      register: npm_prefix
+      changed_when: "'CHANGED' in npm_prefix.stdout"
+      when: npm_check.rc == 0
       tags: ale, ale-npm
 
     - name: Install ALE JS/TS fixers, linters and language servers (npm)
-      ansible.builtin.shell: |
-        command -v npm >/dev/null 2>&1 || { echo "npm not found, skipping"; exit 0; }
-        npm install -g \
-          prettier \
-          eslint \
-          typescript \
-          typescript-language-server \
-          pyright \
-          bash-language-server \
-          yaml-language-server \
-          vscode-langservers-extracted \
-          jsonlint \
-          markdownlint-cli \
-          clang-format
-      changed_when: false
+      community.general.npm:
+        name: "{{ item }}"
+        global: true
+        state: present
+      loop:
+        - prettier
+        - eslint
+        - typescript
+        - typescript-language-server
+        - pyright
+        - bash-language-server
+        - yaml-language-server
+        - vscode-langservers-extracted
+        - jsonlint
+        - markdownlint-cli
+        - clang-format
+      when: npm_check.rc == 0
       tags: ale, ale-npm
 
     - name: Install ALE Python fixers and linters (uv tool)
       ansible.builtin.shell: |
         command -v uv >/dev/null 2>&1 || { echo "uv not found, skipping"; exit 0; }
         for tool in black isort ruff flake8 yamllint vim-vint; do
-          uv tool install "$tool" || echo "warning: failed to install $tool"
+          uv tool install "$tool" 2>&1 || echo "warning: failed to install $tool"
         done
-      changed_when: false
+      register: uv_tools
+      # uv prints "Installed N executable(s)" on a real install, and
+      # "... is already installed" (lowercase) when nothing changes.
+      changed_when: "'Installed' in uv_tools.stdout"
       tags: ale, ale-python
 
     - name: Install ALE Go fixers and language servers (go install)
       ansible.builtin.shell:
         cmd: |
           command -v go >/dev/null 2>&1 || { echo "go not found, skipping"; exit 0; }
-          # Try @latest; fall back to versions that build with older Go
-          # toolchains so an outdated Go does not block the rest of the install.
-          go install golang.org/x/tools/gopls@latest 2>/dev/null \
-            || go install golang.org/x/tools/gopls@v0.11.0 \
-            || echo "warning: gopls install failed - consider upgrading Go"
-          go install golang.org/x/tools/cmd/goimports@latest 2>/dev/null \
-            || go install golang.org/x/tools/cmd/goimports@v0.5.0 \
-            || echo "warning: goimports install failed"
-          go install mvdan.cc/sh/v3/cmd/shfmt@latest 2>/dev/null \
-            || go install mvdan.cc/sh/v3/cmd/shfmt@v3.6.0 \
-            || echo "warning: shfmt install failed"
+          changed=0
+          # Only build a tool when its binary is missing (go install otherwise
+          # recompiles on every run). Try @latest, then fall back to versions
+          # that build with older Go toolchains.
+          install_if_missing() {
+            tool=$1; shift
+            command -v "$tool" >/dev/null 2>&1 && return 0
+            for ref in "$@"; do
+              if go install "$ref" 2>/dev/null; then changed=1; return 0; fi
+            done
+            echo "warning: could not install $tool (consider upgrading Go)"
+          }
+          install_if_missing gopls golang.org/x/tools/gopls@latest golang.org/x/tools/gopls@v0.11.0
+          install_if_missing goimports golang.org/x/tools/cmd/goimports@latest golang.org/x/tools/cmd/goimports@v0.5.0
+          install_if_missing shfmt mvdan.cc/sh/v3/cmd/shfmt@latest mvdan.cc/sh/v3/cmd/shfmt@v3.6.0
+          [ "$changed" -eq 1 ] && echo "CHANGED"
           exit 0
       environment:
         PATH: "{{ home_dir }}/go/bin:{{ ansible_facts['env']['PATH'] }}"
-      changed_when: false
+      register: go_tools
+      changed_when: "'CHANGED' in go_tools.stdout"
       tags: ale, ale-go
 
     - name: Install ALE Rust components (rustfmt, rust-analyzer, clippy)
       ansible.builtin.shell: |
         command -v rustup >/dev/null 2>&1 || { echo "rustup not found, skipping"; exit 0; }
         rustup component add rustfmt rust-analyzer clippy
-      changed_when: false
+      register: rustup_components
+      # rustup prints "info: installing component ..." only on a real install.
+      changed_when: "'installing component' in rustup_components.stdout"
       tags: ale, ale-rust
 
-    - name: Install ALE Rust fixer (stylua via cargo)
-      ansible.builtin.shell: |
-        command -v cargo >/dev/null 2>&1 || { echo "cargo not found, skipping"; exit 0; }
-        command -v stylua >/dev/null 2>&1 && { echo "stylua already installed"; exit 0; }
-        cargo install stylua
+    - name: Check if cargo is available
+      ansible.builtin.shell: command -v cargo
+      register: cargo_check
       changed_when: false
+      failed_when: false
+      tags: ale, ale-stylua
+
+    - name: Install ALE Rust fixer (stylua via cargo)
+      community.general.cargo:
+        name: stylua
+        state: present
+      when: cargo_check.rc == 0
       tags: ale, ale-stylua
 
     - name: Install shellcheck (ALE shell linter) on macOS
-      ansible.builtin.shell: |
-        command -v shellcheck >/dev/null 2>&1 && exit 0
-        command -v brew >/dev/null 2>&1 && brew install shellcheck
+      community.general.homebrew:
+        name: shellcheck
+        state: present
       when: ansible_facts['system'] == "Darwin"
-      changed_when: false
       tags: ale, ale-shellcheck
 
     - name: Install shellcheck (ALE shell linter) on Debian/Ubuntu

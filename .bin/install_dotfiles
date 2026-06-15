@@ -1,0 +1,150 @@
+#!/bin/bash
+set -e
+
+DOTFILES_REPO="https://github.com/jvishnefske/dotfiles.git"
+DOTFILES_DIR="$HOME/.dotfiles"
+BACKUP_DIR="$HOME/.dotfiles-backup"
+
+dotfiles() {
+    git --git-dir="$DOTFILES_DIR" --work-tree="$HOME" "$@"
+}
+
+setup_bare_repo() {
+    if [ -d "$DOTFILES_DIR" ] && git --git-dir="$DOTFILES_DIR" rev-parse --is-bare-repository &>/dev/null; then
+        echo "Bare repo already exists at $DOTFILES_DIR, skipping clone."
+        return 0
+    fi
+
+    if [ -d "$DOTFILES_DIR" ]; then
+        echo "Error: $DOTFILES_DIR exists but is not a bare repo."
+        echo "Please remove or rename it before running this script."
+        exit 1
+    fi
+
+    echo "Cloning dotfiles bare repo into $DOTFILES_DIR..."
+    git clone --bare "$DOTFILES_REPO" "$DOTFILES_DIR"
+}
+
+# Initialize git submodules (e.g. oh-my-zsh, which lives at ~/ohmyzsh and is
+# symlinked from ~/.oh-my-zsh). A bare-repo checkout does NOT pull submodules,
+# so without this step zsh fails on `source $ZSH/oh-my-zsh.sh`.
+init_submodules() {
+    echo "Initializing submodules..."
+    if dotfiles submodule update --init --recursive; then
+        echo "Submodules initialized."
+    else
+        echo "Warning: 'submodule update' failed; falling back to direct clones."
+        # Fallback: clone any registered-but-empty submodules directly.
+        dotfiles config --file "$HOME/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null \
+            | while read -r _key path; do
+                local url
+                url=$(dotfiles config --file "$HOME/.gitmodules" --get "submodule.$path.url" 2>/dev/null)
+                if [ -n "$url" ] && [ ! -e "$HOME/$path/.git" ] && [ -z "$(ls -A "$HOME/$path" 2>/dev/null)" ]; then
+                    echo "  Cloning $path from $url..."
+                    rmdir "$HOME/$path" 2>/dev/null || true
+                    git clone "$url" "$HOME/$path"
+                fi
+            done
+    fi
+    return 0
+}
+
+configure_bare_repo() {
+    dotfiles config status.showUntrackedFiles no
+}
+
+checkout_dotfiles() {
+    echo "Checking out dotfiles into $HOME..."
+    if dotfiles checkout 2>/dev/null; then
+        echo "Checkout successful."
+    else
+        echo "Checkout conflicts detected. Backing up existing files to $BACKUP_DIR..."
+        mkdir -p "$BACKUP_DIR"
+
+        dotfiles checkout 2>&1 \
+            | grep -E "^\s+" \
+            | awk '{print $1}' \
+            | while read -r file; do
+                dest="$BACKUP_DIR/$file"
+                mkdir -p "$(dirname "$dest")"
+                mv "$HOME/$file" "$dest"
+                echo "  Backed up: $file"
+            done
+
+        dotfiles checkout
+        echo "Checkout successful after backing up conflicts."
+    fi
+}
+
+install_uv() {
+    if command -v uv &>/dev/null; then
+        echo "uv is already installed."
+        return 0
+    fi
+
+    echo "uv is not installed."
+    read -p "Would you like to install uv? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
+        export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+        if command -v uv &>/dev/null; then
+            echo "uv installed successfully."
+        else
+            echo "Error: uv installation failed."
+            return 1
+        fi
+    else
+        echo "Skipping uv — ansible playbook will not run."
+        return 1
+    fi
+}
+
+run_ansible() {
+    local playbook="$HOME/.bin/install.yml"
+
+    if [ ! -f "$playbook" ]; then
+        echo "Warning: .bin/install.yml not found, skipping ansible playbook."
+        return 0
+    fi
+
+    echo "Running ansible playbook..."
+    # Use the full 'ansible' package (not ansible-core) so the playbook's
+    # community.general modules (npm, cargo, homebrew) are available.
+    uvx --from ansible ansible-playbook "$playbook"
+}
+
+install_shell_alias() {
+    local rc="$1"
+    local alias_line='alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"'
+
+    [ ! -f "$rc" ] && return 0
+
+    if grep -qF 'alias dotfiles=' "$rc"; then
+        echo "Dotfiles alias already present in $rc"
+    else
+        printf '\n# Dotfiles bare repo alias\n%s\n' "$alias_line" >> "$rc"
+        echo "Added dotfiles alias to $rc"
+    fi
+}
+
+echo "=== Dotfiles installer ==="
+
+setup_bare_repo
+configure_bare_repo
+checkout_dotfiles
+init_submodules
+
+install_shell_alias "$HOME/.bashrc"
+install_shell_alias "$HOME/.zshrc"
+
+if install_uv; then
+    run_ansible
+fi
+
+echo ""
+echo "Done! Open a new shell or run: source ~/.bashrc (or ~/.zshrc)"
+echo "Then use 'dotfiles' as a git alias for managing your dotfiles."
