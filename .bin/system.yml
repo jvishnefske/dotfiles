@@ -2,40 +2,12 @@
 - name: Install system packages
   hosts: localhost
   connection: local
-  gather_facts: yes
-  become: yes
   gather_facts: true
   become: true
 
   tasks:
-    - name: Install Go
-      ansible.builtin.package:
-        name: golang
-        state: present
-      tags: go
-
-    - name: Install Vim
-      ansible.builtin.package:
-        name: vim
-        state: present
-      tags: vim
-
-    - name: Install Neovim
-      ansible.builtin.package:
-        name: neovim
-        state: present
-      tags: nvim
-
-    - name: Install Git
-      ansible.builtin.package:
-        name: git
-        state: present
-      tags: git
-
-    - name: Install curl
     - name: Install core packages
       ansible.builtin.package:
-        name: curl
         name:
           - git
           - curl
@@ -45,12 +17,9 @@
           - make
           - golang
         state: present
-      tags: curl
 
-    - name: Install build essentials
     - name: Install ALE linter/fixer tools
       ansible.builtin.package:
-        name: "{{ item }}"
         name:
           - clang-tools-extra
           - nodejs
@@ -60,9 +29,6 @@
     - name: Install npm tools (prettier, eslint)
       ansible.builtin.command: npm install -g {{ item }}
       loop:
-        - gcc
-        - make
-      tags: build-tools
         - prettier
         - eslint
       register: npm_install

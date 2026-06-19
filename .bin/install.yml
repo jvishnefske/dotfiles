@@ -81,17 +81,24 @@
       tags: python
 
     - name: Check if gh (GitHub CLI) is installed
-      ansible.builtin.shell: command -v gh
+      ansible.builtin.command: which gh
       register: gh_check
       failed_when: false
       changed_when: false
 
-    - name: Install GitHub CLI (macOS)
+    - name: Install GitHub CLI (Debian/Ubuntu)  # noqa: command-instead-of-module
       ansible.builtin.shell: |
-        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        set -o pipefail
+        keyring=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of="$keyring"
+        arch="$(dpkg --print-architecture)"
+        echo "deb [arch=$arch signed-by=$keyring] https://cli.github.com/packages stable main" \
+          | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
         sudo apt update
         sudo apt install gh -y
+      args:
+        executable: /bin/bash
+      changed_when: true
       when: gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
       tags: github
 
@@ -140,6 +147,9 @@
         sudo dnf install 'dnf-command(config-manager)' -y
         sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
         sudo dnf install gh -y
+      args:
+        executable: /bin/bash
+      changed_when: true
       when: gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
       tags: github
 
@@ -296,7 +306,7 @@
     # not `--from ansible-core`.
     # ------------------------------------------------------------------
     - name: Check if npm is available
-      ansible.builtin.shell: command -v npm
+      ansible.builtin.command: which npm
       register: npm_check
       changed_when: false
       failed_when: false
@@ -384,7 +394,7 @@
       tags: ale, ale-rust
 
     - name: Check if cargo is available
-      ansible.builtin.shell: command -v cargo
+      ansible.builtin.command: which cargo
       register: cargo_check
       changed_when: false
       failed_when: false
