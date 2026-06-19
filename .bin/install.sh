@@ -130,8 +130,10 @@ run_ansible() {
     echo "Running ansible playbook..."
     # This playbook contains non-root tasks only
     # For system-level packages requiring root (e.g., GitHub CLI), run install-system.yml separately with:
-    # uvx --from ansible-core ansible-playbook install-system.yml --ask-become-pass -e "install_github_cli=true"
-    uvx --from ansible-core ansible-playbook "$playbook"
+    # uvx --from ansible ansible-playbook install-system.yml --ask-become-pass -e "install_github_cli=true"
+    # Use the full 'ansible' package (not ansible-core) so the playbook's
+    # community.general modules (npm, cargo, homebrew) are available.
+    uvx --from ansible ansible-playbook "$playbook"
 }
 
 # ---------- Main ----------
