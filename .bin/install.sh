@@ -133,7 +133,10 @@ run_ansible() {
     # uvx --from ansible ansible-playbook install-system.yml --ask-become-pass -e "install_github_cli=true"
     # Use the full 'ansible' package (not ansible-core) so the playbook's
     # community.general modules (npm, cargo, homebrew) are available.
-    uvx --from ansible ansible-playbook "$playbook"
+    # This installer already ensures uv is present, so use it as the Python
+    # package manager (PDM's installer needs python3-venv, which isn't always
+    # available). Override with PKG_MANAGER=pdm if you prefer PDM.
+    uvx --from ansible ansible-playbook "$playbook" -e "pkg_manager=${PKG_MANAGER:-uv}"
 }
 
 # ---------- Main ----------
