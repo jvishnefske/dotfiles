@@ -22,6 +22,7 @@
           set -o pipefail
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source {{ home_dir }}/.cargo/env
+        executable: /bin/bash
       changed_when: true
       when: rustup_check.rc != 0
       tags: rust
@@ -46,6 +47,7 @@
         cmd: |
           set -o pipefail
           curl -sSL https://pdm-project.org/install-pdm.py | python3 -
+        executable: /bin/bash
       changed_when: true
       when: python_pkg_manager == "pdm" and pdm_check.rc != 0 and ansible_facts['system'] in ["Linux", "Darwin"]
       tags: python
@@ -70,6 +72,7 @@
         cmd: |
           set -o pipefail
           curl -LsSf https://astral.sh/uv/install.sh | sh
+        executable: /bin/bash
       changed_when: true
       when: python_pkg_manager == "uv" and uv_check.rc != 0
       tags: python
@@ -164,6 +167,7 @@
         cmd: |
           set -o pipefail
           go version | grep -o 'go[0-9.]*' | cut -c3-
+        executable: /bin/bash
       register: go_version_check
       when: go_check.rc == 0
       changed_when: false
@@ -414,12 +418,15 @@
       when: ansible_facts['system'] == "Darwin"
       tags: ale, ale-shellcheck
 
+    # The apt/dnf shellcheck tasks need root. This playbook is otherwise
+    # non-root, so they are opt-in: run with -e install_system_packages=true
+    # (and --ask-become-pass) to install shellcheck system-wide.
     - name: Install shellcheck (ALE shell linter) on Debian/Ubuntu
       ansible.builtin.apt:
         name: shellcheck
         state: present
       become: true
-      when: ansible_facts['os_family'] == "Debian"
+      when: install_system_packages | default(false) and ansible_facts['os_family'] == "Debian"
       tags: ale, ale-shellcheck
 
     - name: Install shellcheck (ALE shell linter) on RHEL/Fedora
@@ -427,7 +434,7 @@
         name: ShellCheck
         state: present
       become: true
-      when: ansible_facts['os_family'] == "RedHat"
+      when: install_system_packages | default(false) and ansible_facts['os_family'] == "RedHat"
       tags: ale, ale-shellcheck
 
     - name: Display completion message
