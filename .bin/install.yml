@@ -42,11 +42,17 @@
       changed_when: false
       when: python_pkg_manager == "pdm"
 
+    # The standalone installer needs ensurepip (python3-venv on Debian),
+    # which is absent on minimal systems — prefer uv, which needs neither.
     - name: Install pdm
       ansible.builtin.shell:
         cmd: |
           set -o pipefail
-          curl -sSL https://pdm-project.org/install-pdm.py | python3 -
+          if command -v uv >/dev/null 2>&1; then
+            uv tool install pdm
+          else
+            curl -sSL https://pdm-project.org/install-pdm.py | python3 -
+          fi
         executable: /bin/bash
       changed_when: true
       when: python_pkg_manager == "pdm" and pdm_check.rc != 0 and ansible_facts['system'] in ["Linux", "Darwin"]
@@ -237,14 +243,36 @@
         - "{{ home_dir }}/.vim/autoload"
         - "{{ home_dir }}/.local/share/nvim/site/autoload"
 
+    # The bare-repo checkout places vim configs at ~/vim/, but .vimrc and
+    # nvim/init.lua source them from ~/.vim/ — link each file across.
+    - name: Link shared Vim config files into ~/.vim
+      ansible.builtin.file:
+        src: "{{ item }}"
+        dest: "{{ home_dir }}/.vim/{{ item | basename }}"
+        state: link
+      loop: "{{ lookup('fileglob', dotfiles_dir + '/vim/*.vim', wantlist=True) }}"
+
+    - name: Link Neovim init.lua into ~/.config/nvim
+      ansible.builtin.file:
+        src: "{{ dotfiles_dir }}/nvim/init.lua"
+        dest: "{{ home_dir }}/.config/nvim/init.lua"
+        state: link
+
     - name: Check if Neovim is installed
       ansible.builtin.command: which nvim
       register: nvim_check
       failed_when: false
       changed_when: false
 
-    - name: Check if Vim is installed
-      ansible.builtin.command: which vim
+    # On systems where /usr/bin/vim is an alternatives link to nvim, the
+    # real-Vim plugin tasks must be skipped (nvim has its own tasks below
+    # and does not read ~/.vim/autoload).
+    - name: Check if Vim is installed (and is real Vim, not a Neovim alias)
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          command -v vim && vim --version | head -1 | grep -q '^VIM'
+        executable: /bin/bash
       register: vim_check
       failed_when: false
       changed_when: false
@@ -288,13 +316,15 @@
       when: nvim_check.rc == 0 and not nvim_plug_stat.stat.exists
       tags: nvim-plug
 
+    # plug#begin('~/.vim/plugged') in .vimrc is shared by both editors,
+    # so check the real install location, not the nvim site dir.
     - name: Check if Neovim plugins are installed
       ansible.builtin.stat:
-        path: "{{ home_dir }}/.local/share/nvim/site/plugged"
+        path: "{{ home_dir }}/.vim/plugged"
       register: nvim_plugged_stat
 
     - name: Install Neovim plugins
-      ansible.builtin.command: nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
+      ansible.builtin.command: nvim --headless -c 'PlugInstall --sync' -c 'qa!'
       changed_when: true
       when: nvim_check.rc == 0 and not nvim_plugged_stat.stat.exists
       tags: nvim-plugins
