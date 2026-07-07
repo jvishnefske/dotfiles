@@ -34,3 +34,11 @@ let mapleader = "\\"
 
 " Jump to last cursor position when reopening a file
 au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
+
+" Open NERDTree on startup when launched with no file arguments
+function! s:StartUp() abort
+  if 0 == argc()
+    NERDTree
+  endif
+endfunction
+autocmd VimEnter * call s:StartUp()
