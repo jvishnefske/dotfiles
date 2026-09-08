@@ -15,6 +15,7 @@
       register: rustup_check
       failed_when: false
       changed_when: false
+      tags: always
 
     - name: Install rustup
       ansible.builtin.shell:
@@ -167,17 +168,33 @@
       register: go_check
       failed_when: false
       changed_when: false
+      tags: always
 
+    # `grep -o 'go[0-9.]*'` also matched the bare "go" in "go version", which
+    # put a stray blank line ahead of the number — take the version field.
     - name: Check Go version
       ansible.builtin.shell:
         cmd: |
           set -o pipefail
-          go version | grep -o 'go[0-9.]*' | cut -c3-
+          go version | awk '{print $3}' | sed 's/^go//'
         executable: /bin/bash
       register: go_version_check
       when: go_check.rc == 0
       changed_when: false
       failed_when: false
+      tags: always
+
+    # The `version` test cannot order Go's mixed two- and three-component
+    # version strings ("1.21" vs "1.19.4"), so compare major/minor as integers.
+    - name: Decide whether the Go toolchain can build the ALE tools
+      ansible.builtin.set_fact:
+        go_tools_supported: >-
+          {{ go_parts[0] | int > 1
+             or (go_parts[0] | int == 1 and go_parts[1] | int >= 21) }}
+      vars:
+        go_parts: "{{ (go_version_check.stdout | default('0', true)).split('.') + ['0', '0'] }}"
+      when: go_check.rc == 0
+      tags: always
 
     - name: Check if NATS CLI is installed
       ansible.builtin.command: which nats
@@ -223,8 +240,7 @@
         creates: "{{ home_dir }}/go/bin/{{ item.bin }}"
       when:
         - go_check.rc == 0
-        - go_version_check.stdout is defined
-        - go_version_check.stdout is version('1.21', '>=')
+        - go_tools_supported | default(false) | bool
       tags: go-tools
 
     - name: Warn when the Go toolchain is too old for the ALE tools
@@ -235,7 +251,7 @@
           Upgrade Go (e.g. `brew install go`) and re-run with `--tags go-tools`.
       when:
         - go_check.rc == 0
-        - go_version_check.stdout is not defined or go_version_check.stdout is version('1.21', '<')
+        - not (go_tools_supported | default(false) | bool)
       tags: go-tools
 
     - name: Initialize git submodules  # noqa: command-instead-of-module
@@ -284,6 +300,7 @@
       register: nvim_check
       failed_when: false
       changed_when: false
+      tags: always
 
     # On systems where /usr/bin/vim is an alternatives link to nvim, the
     # real-Vim plugin tasks must be skipped (nvim has its own tasks below
@@ -297,11 +314,13 @@
       register: vim_check
       failed_when: false
       changed_when: false
+      tags: always
 
     - name: Check if Vim-Plug is installed for Vim
       ansible.builtin.stat:
         path: "{{ home_dir }}/.vim/autoload/plug.vim"
       register: vim_plug_stat
+      tags: always
 
     - name: Download Vim-Plug for Vim
       ansible.builtin.get_url:
@@ -327,6 +346,7 @@
       ansible.builtin.stat:
         path: "{{ home_dir }}/.local/share/nvim/site/autoload/plug.vim"
       register: nvim_plug_stat
+      tags: always
 
     - name: Download Vim-Plug for Neovim
       ansible.builtin.get_url:
@@ -478,7 +498,7 @@
       register: cargo_check
       changed_when: false
       failed_when: false
-      tags: ale, ale-stylua
+      tags: ale, ale-stylua, always
 
     - name: Install ALE Rust fixer (stylua via cargo)
       community.general.cargo:
