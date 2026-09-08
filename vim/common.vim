@@ -29,6 +29,36 @@ let g:ctrlp_cmd = 'CtrlP'
 autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
 
 " ---- coc.nvim -------------------------------------------------------------
+" The coc release bundle needs Node >= 20 (its ansi-styles dependency uses the
+" RegExp `v` flag). A system Node at /usr/local/bin often shadows a newer
+" runtime in PATH, so fall back to the highest nvm-managed version instead of
+" letting the language-server host crash on startup.
+function! s:CocNodePath() abort
+  let l:default = exepath('node')
+  if !empty(l:default) && s:NodeMajor(l:default) >= 20
+    return l:default
+  endif
+  let l:best = ''
+  let l:best_major = 0
+  for l:candidate in glob(expand('~/.nvm/versions/node') . '/v*/bin/node', 0, 1)
+    let l:major = s:NodeMajor(l:candidate)
+    if l:major > l:best_major
+      let l:best = l:candidate
+      let l:best_major = l:major
+    endif
+  endfor
+  return l:best_major >= 20 ? l:best : l:default
+endfunction
+
+function! s:NodeMajor(node) abort
+  if !executable(a:node)
+    return 0
+  endif
+  return str2nr(matchstr(system(a:node . ' --version'), '^v\zs\d\+'))
+endfunction
+
+let g:coc_node_path = s:CocNodePath()
+
 let g:coc_global_extensions = [
       \ 'coc-rust-analyzer',
       \ 'coc-json',

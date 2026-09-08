@@ -208,15 +208,34 @@
       failed_when: false
       tags: python-tools
 
+    # @latest modules now declare go >= 1.21 in go.mod. Toolchains older than
+    # 1.21 neither parse those directives nor honour GOTOOLCHAIN, so they fail
+    # with "invalid go version '1.23.0': must match format 1.23" — skip them.
     - name: Install Go ALE tools
       ansible.builtin.command: go install {{ item.pkg }}
+      environment:
+        GOTOOLCHAIN: auto
       loop:
         - { pkg: "golang.org/x/tools/gopls@latest", bin: "gopls" }
         - { pkg: "github.com/golangci/golangci-lint/cmd/golangci-lint@latest", bin: "golangci-lint" }
         - { pkg: "golang.org/x/tools/cmd/goimports@latest", bin: "goimports" }
       args:
         creates: "{{ home_dir }}/go/bin/{{ item.bin }}"
-      when: go_check.rc == 0
+      when:
+        - go_check.rc == 0
+        - go_version_check.stdout is defined
+        - go_version_check.stdout is version('1.21', '>=')
+      tags: go-tools
+
+    - name: Warn when the Go toolchain is too old for the ALE tools
+      ansible.builtin.debug:
+        msg: >-
+          Go {{ go_version_check.stdout | default('unknown') }} is too old for
+          the ALE Go tools (need >= 1.21) — skipping gopls/golangci-lint/goimports.
+          Upgrade Go (e.g. `brew install go`) and re-run with `--tags go-tools`.
+      when:
+        - go_check.rc == 0
+        - go_version_check.stdout is not defined or go_version_check.stdout is version('1.21', '<')
       tags: go-tools
 
     - name: Initialize git submodules  # noqa: command-instead-of-module
@@ -250,6 +269,7 @@
         src: "{{ item }}"
         dest: "{{ home_dir }}/.vim/{{ item | basename }}"
         state: link
+        force: true
       loop: "{{ lookup('fileglob', dotfiles_dir + '/vim/*.vim', wantlist=True) }}"
 
     - name: Link Neovim init.lua into ~/.config/nvim
@@ -257,6 +277,7 @@
         src: "{{ dotfiles_dir }}/nvim/init.lua"
         dest: "{{ home_dir }}/.config/nvim/init.lua"
         state: link
+        force: true
 
     - name: Check if Neovim is installed
       ansible.builtin.command: which nvim
@@ -291,15 +312,15 @@
       when: vim_check.rc == 0 and not vim_plug_stat.stat.exists
       tags: vim-plug
 
-    - name: Check if Vim plugins are installed
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.vim/plugged"
-      register: vim_plugged_stat
-
+    # vim-plug clones only the plugins that are missing, so this is safe to run
+    # every pass. Gating it on the mere existence of ~/.vim/plugged meant any
+    # plugin added after the first run was never installed.
     - name: Install Vim plugins
       ansible.builtin.command: vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
-      changed_when: true
-      when: vim_check.rc == 0 and not vim_plugged_stat.stat.exists
+      register: vim_plugin_install
+      changed_when: "'Installing' in vim_plugin_install.stdout or 'Cloning' in vim_plugin_install.stdout"
+      failed_when: false
+      when: vim_check.rc == 0
       tags: vim-plugins
 
     - name: Check if Vim-Plug is installed for Neovim
@@ -316,18 +337,43 @@
       when: nvim_check.rc == 0 and not nvim_plug_stat.stat.exists
       tags: nvim-plug
 
-    # plug#begin('~/.vim/plugged') in .vimrc is shared by both editors,
-    # so check the real install location, not the nvim site dir.
-    - name: Check if Neovim plugins are installed
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.vim/plugged"
-      register: nvim_plugged_stat
-
+    # plug#begin('~/.vim/plugged') in .vimrc is shared by both editors, so this
+    # installs into the same tree as the Vim task above and is likewise a no-op
+    # once every declared plugin is present.
     - name: Install Neovim plugins
       ansible.builtin.command: nvim --headless -c 'PlugInstall --sync' -c 'qa!'
-      changed_when: true
-      when: nvim_check.rc == 0 and not nvim_plugged_stat.stat.exists
+      register: nvim_plugin_install
+      changed_when: "'Installing' in nvim_plugin_install.stderr or 'Cloning' in nvim_plugin_install.stderr"
+      failed_when: false
+      when: nvim_check.rc == 0
       tags: nvim-plugins
+
+    # coc.nvim ships a prebuilt build/index.js only on its `release` branch.
+    # A clone left on master (installed before the branch pin, or moved by a
+    # stray checkout) makes every Vim start print
+    # "build/index.js not found, please install dependencies and compile".
+    - name: Check for the prebuilt coc.nvim bundle
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.vim/plugged/coc.nvim/build/index.js"
+      register: coc_build_stat
+      tags: vim-plugins
+
+    - name: Check whether coc.nvim is checked out
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.vim/plugged/coc.nvim/.git"
+      register: coc_repo_stat
+      tags: vim-plugins
+
+    - name: Put coc.nvim back on its prebuilt release branch  # noqa: command-instead-of-module
+      ansible.builtin.command: "{{ item }}"
+      args:
+        chdir: "{{ home_dir }}/.vim/plugged/coc.nvim"
+      loop:
+        - git fetch origin release:refs/remotes/origin/release
+        - git checkout -B release origin/release
+      changed_when: true
+      when: coc_repo_stat.stat.exists and not coc_build_stat.stat.exists
+      tags: vim-plugins
 
     # ------------------------------------------------------------------
     # ALE fixers, linters and language-server "completers"
