@@ -136,3 +136,7 @@ Or git's includeIf for per-directory git identity:
 - **Ansible errors**: Ensure `uvx --from ansible-core` works
 - **Plugin install fails**: Run `:PlugInstall` manually in Vim/Neovim
 - **IDE doesn't see repo**: VSCode doesn't detect bare repos — use the terminal alias
+
+## Projects
+
+- [`projects/teledildo`](projects/teledildo/) — open-source teledildonics device: `no_std` Rust safety governor (tested, property-tested, Kani-provable) plus RP2040 firmware speaking TCode over USB for Buttplug/Intiface remote control.

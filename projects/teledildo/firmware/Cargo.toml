@@ -1,0 +1,55 @@
+[package]
+name = "teledildo-rp2040"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "RP2040 (Raspberry Pi Pico) firmware: TCode over USB CDC driving a vibration motor and a stroke servo through the teledildo-core safety governor."
+publish = false
+
+[dependencies]
+teledildo-core = { path = "../core" }
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { version = "0.5.1", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { version = "0.10.0", features = ["rp2040", "defmt", "time-driver", "critical-section-impl"] }
+embassy-usb = { version = "0.6.0", default-features = false, features = ["defmt"] }
+embassy-sync = { version = "0.8.0", features = ["defmt"] }
+
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.5"
+portable-atomic = { version = "1.10", features = ["critical-section"] }
+static_cell = "2.1"
+fixed = "1.28"
+
+defmt = "1.0"
+defmt-rtt = "1.0"
+panic-probe = { version = "1.0", features = ["print-defmt"] }
+
+[profile.dev]
+opt-level = "s"          # embassy is unusable at -O0 on a Cortex-M0+
+debug = 2
+overflow-checks = true
+
+[profile.release]
+opt-level = "s"
+debug = 2                # symbols stay in the ELF, not in flash
+lto = "fat"
+codegen-units = 1
+overflow-checks = true   # a wrap in the control loop must trap, not continue
+debug-assertions = false
+incremental = false
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+arithmetic_side_effects = "deny"
+indexing_slicing = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+float_arithmetic = "deny"
+as_conversions = "deny"

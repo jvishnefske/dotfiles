@@ -1,0 +1,60 @@
+name: teledildo
+
+on:
+  push:
+    branches: [main]
+    paths: ["projects/teledildo/**", ".github/workflows/teledildo.yml"]
+  pull_request:
+    paths: ["projects/teledildo/**", ".github/workflows/teledildo.yml"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  core:
+    name: core (fmt, clippy, tests, proptests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/teledildo/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/teledildo/core
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo run --example replay -- 250 < /dev/null
+
+  firmware:
+    name: firmware (clippy, build thumbv6m-none-eabi)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/teledildo/firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: thumbv6m-none-eabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/teledildo/firmware
+      - run: cargo fmt --check
+      - run: cargo clippy --release -- -D warnings
+      - run: cargo build --release
+      - run: size -A target/thumbv6m-none-eabi/release/teledildo-rp2040
+
+  kani:
+    name: core (Kani bounded proofs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: model-checking/kani-github-action@v1
+        with:
+          working-directory: projects/teledildo/core
