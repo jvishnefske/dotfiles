@@ -1,67 +1,26 @@
 ---
-- name: Setup Vcpkg
-  hosts: all
+# Install vcpkg into ~/.local/vcpkg. ~/.profile adds VCPKG_ROOT and PATH
+# whenever that directory exists, so no shell rc edits are needed.
+#
+#   uvx --from ansible-core ansible-playbook ~/.bin/setup_vcpkg.yml
+- name: Setup vcpkg
+  hosts: localhost
+  connection: local
   gather_facts: false
   become: false
-
   vars:
     vcpkg_dir: "{{ lookup('env', 'HOME') }}/.local/vcpkg"
-    vcpkg_repo_url: "https://github.com/microsoft/vcpkg.git"
-    zshrc_file: "{{ lookup('env', 'HOME') }}/.zshrc"
-    bashrc_file: "{{ lookup('env', 'HOME') }}/.bashrc"
-    vcpkg_env_var: "export VCPKG_ROOT=\"{{ vcpkg_dir }}\""
-    vcpkg_path_var: "export PATH=\"$VCPKG_ROOT:$PATH\""
 
   tasks:
-    - name: Check if vcpkg directory exists
-      ansible.builtin.stat:
-        path: "{{ vcpkg_dir }}"
-      register: vcpkg_dir_stat
-
-    - name: Clone vcpkg repository
-      when: not vcpkg_dir_stat.stat.exists
+    - name: Clone vcpkg
       ansible.builtin.git:
-        repo: "{{ vcpkg_repo_url }}"
+        repo: https://github.com/microsoft/vcpkg.git
         dest: "{{ vcpkg_dir }}"
         version: master
-        accept_hostkey: true
+        update: false
 
-    - name: Run vcpkg bootstrap script
+    - name: Bootstrap vcpkg
       ansible.builtin.command:
-        cmd: ./bootstrap-vcpkg.sh
+        cmd: ./bootstrap-vcpkg.sh -disableMetrics
         chdir: "{{ vcpkg_dir }}"
         creates: "{{ vcpkg_dir }}/vcpkg"
-
-    - name: Check if .zshrc exists
-      ansible.builtin.stat:
-        path: "{{ zshrc_file }}"
-      register: zshrc_stat
-
-    - name: Add VCPKG_ROOT and PATH to .zshrc
-      when: zshrc_stat.stat.exists
-      ansible.builtin.lineinfile:
-        path: "{{ zshrc_file }}"
-        line: "{{ item }}"
-        state: present
-        insertafter: EOF
-      loop:
-        - "# Vcpkg environment variables"
-        - "{{ vcpkg_env_var }}"
-        - "{{ vcpkg_path_var }}"
-
-    - name: Check if .bashrc exists
-      ansible.builtin.stat:
-        path: "{{ bashrc_file }}"
-      register: bashrc_stat
-
-    - name: Add VCPKG_ROOT and PATH to .bashrc
-      when: bashrc_stat.stat.exists
-      ansible.builtin.lineinfile:
-        path: "{{ bashrc_file }}"
-        line: "{{ item }}"
-        state: present
-        insertafter: EOF
-      loop:
-        - "# Vcpkg environment variables"
-        - "{{ vcpkg_env_var }}"
-        - "{{ vcpkg_path_var }}"

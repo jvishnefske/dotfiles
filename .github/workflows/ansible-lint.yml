@@ -2,23 +2,18 @@ name: Ansible Lint
 
 on:
   push:
-    branches: [main, dev-bare-repo]
-  pull_request:
     branches: [main]
+  pull_request:
 
 jobs:
   ansible-lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Install ansible-lint
+        # community.general provides the npm/cargo/homebrew modules.
         run: |
           pip install ansible-lint
-          # install.yml uses community.general modules (npm/cargo/homebrew);
-          # the collection must be present for the syntax-check rule to resolve them.
           ansible-galaxy collection install community.general
-
       - name: Run ansible-lint
-        run: ansible-lint .bin/install.yml .bin/install-system.yml .bin/system.yml .bin/setup_vcpkg.yml
+        run: ansible-lint .bin/*.yml

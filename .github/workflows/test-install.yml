@@ -1,47 +1,35 @@
-name: Test Install Script
+name: Test Install
 
 on:
   push:
-    branches: [ main, dev-bare-repo ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
 
 jobs:
   test-install:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-
-    runs-on: ${{ matrix.os }}
-
+    runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Run install script
-      run: |
-        chmod +x .bin/install.sh
-        echo "y" | .bin/install.sh || true
-      shell: bash
+      # Install from this checkout (not GitHub main) so PRs test their own code.
+      - name: Run installer
+        run: |
+          git checkout -B ci-under-test
+          DOTFILES_REPO="$GITHUB_WORKSPACE" DOTFILES_BRANCH=ci-under-test .bin/install.sh
 
-    - name: Verify uv installation
-      run: |
-        if command -v uv >/dev/null 2>&1; then
-          echo "uv is installed"
-          uv --version
-        else
-          echo "uv not found in PATH"
-          exit 1
-        fi
+      - name: Run installer again (must be idempotent)
+        run: .bin/install.sh
 
-    - name: Verify created directories
-      run: |
-        for dir in ~/.config ~/.vim ~/.local/share/nvim/site/autoload; do
-          if [ -d "$dir" ]; then
-            echo "OK: $dir exists"
-          else
-            echo "MISSING: $dir"
-          fi
-        done
+      - name: Verify
+        run: |
+          set -e
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/go/bin:$PATH"
+          test -f ~/ohmyzsh/oh-my-zsh.sh
+          test -L ~/.vim/core.vim
+          test -L ~/.config/nvim/init.lua
+          test -f ~/.vim/autoload/plug.vim
+          for t in uv rustup ruff gopls prettier; do command -v "$t"; done
+          bash -ic 'type dotfiles'
+          vim -es -u ~/.vimrc -i NONE -c 'if exists(":PlugInstall") | qa | else | cq | endif'

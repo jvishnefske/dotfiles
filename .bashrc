@@ -1,30 +1,23 @@
-#export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:/usr/bin:/usr/sbin:$HOME/bin/node-current/bin:/bin:/usr/local/bin:$HOME/.local/bin
-[ -f /etc/profild.d/bash_completion.sh ] && . /etc/profile.d/bash_completion.sh 
-#export PS1="\[\e[32m\][\u@\h:\W]\\$\[\e[m\]"
-export PS1="\[\e[32m\]\u@\h:\W\\$\[\e[m\]"
+# ~/.bashrc — interactive bash. Environment lives in ~/.profile.
+# shellcheck shell=bash
+# shellcheck source=/dev/null
+[ -f "$HOME/.profile" ] && . "$HOME/.profile"
+
+[ -f /etc/profile.d/bash_completion.sh ] && . /etc/profile.d/bash_completion.sh
 [ -x /usr/bin/lesspipe.sh ] && eval "$(SHELL=/bin/sh lesspipe.sh)"
-export WORKON_HOME=$HOME/.virtualenvs
-export PROJECT_HOME=$HOME/src
-export VIRTUALENVWRAPPER_SCRIPT=$HOME/.bin/virtualenvwrapper.sh
-[ -f $VIRTUALENVWRAPPER_SCRIPT ] && source $VIRTUALENVWRAPPER_SCRIPT
-export PCLINT_PATH=$HOME/bin/pclint9/
-export GOPATH=$HOME
+
+PS1='\[\e[32m\]\u@\h:\W\$\[\e[m\] '
+
 alias vi=vim
 alias rm='rm -i'
 alias mv='mv -i'
-alias ls='ls --color'
+if ls --color=auto / >/dev/null 2>&1; then
+    alias ls='ls --color=auto'   # GNU ls
+else
+    alias ls='ls -G'             # BSD/macOS ls
+fi
 
+# Manage tracked dotfiles with: dotfiles <git-cmd>
+alias dotfiles='git --git-dir=$HOME/.dotfiles --work-tree=$HOME'
 
-export PATH="/home/j/.local/bin:$PATH"
-. "$HOME/.cargo/env"
-# Vcpkg environment variables
-export VCPKG_ROOT="/home/j/.local/vcpkg"
-export PATH="$VCPKG_ROOT:$PATH"
-
-# Dotfiles bare repo alias — manage tracked dotfiles with: dotfiles <git-cmd>
-alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"
-
-# Go tool binaries for vim/ALE (gopls, goimports, shfmt); cargo bin added above
-export PATH="$HOME/go/bin:$PATH"
-
-. "$HOME/.local/bin/env"
+[ -f "$HOME/.bashrc.local" ] && . "$HOME/.bashrc.local"
