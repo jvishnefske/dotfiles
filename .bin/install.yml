@@ -1,431 +1,154 @@
 ---
-- name: Install dotfiles configuration
+# User-level tooling. Never needs sudo (see system.yml for that). Idempotent.
+#
+#   uvx --from ansible ansible-playbook ~/.bin/install.yml [--tags rust,vim]
+#
+# Opt-in extras: -e install_pdm=true  -e install_nats_tools=true
+#                -e update_rustup=true
+- name: Install user tooling and editor setup
   hosts: localhost
   connection: local
   gather_facts: true
   become: false
   vars:
-    dotfiles_dir: "{{ ansible_facts['env']['HOME'] }}"
     home_dir: "{{ ansible_facts['env']['HOME'] }}"
-    python_pkg_manager: "{{ pkg_manager | default('pdm') }}"
+    go_min_minor: 21
+  environment:
+    # Tools installed by earlier tasks must be visible to later ones.
+    PATH: "{{ home_dir }}/.local/bin:{{ home_dir }}/.cargo/bin:{{ home_dir }}/go/bin:{{ ansible_facts['env']['PATH'] }}"
+    GOTOOLCHAIN: auto
 
   tasks:
-    - name: Check if rustup is installed
-      ansible.builtin.command: which rustup
-      register: rustup_check
-      failed_when: false
+    # ---------------------------------------------------------------- probes
+    - name: Probe available toolchains  # noqa: command-instead-of-shell (command -v is a builtin)
+      ansible.builtin.shell: "command -v {{ item }}"
+      loop: [go, npm, vim, nvim]
+      register: probe
       changed_when: false
+      failed_when: false
       tags: always
 
-    - name: Install rustup
-      ansible.builtin.shell:
-        cmd: |
-          set -o pipefail
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source {{ home_dir }}/.cargo/env
+    - name: Record which toolchains exist
+      ansible.builtin.set_fact:
+        have: "{{ have | default({}) | combine({item.item: item.rc == 0}) }}"
+      loop: "{{ probe.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      tags: always
+
+    # `go version` prints e.g. "go version go1.22.3 linux/amd64".
+    - name: Read Go version
+      ansible.builtin.shell: set -o pipefail && go version | awk '{print $3}' | sed 's/^go//'
+      args:
         executable: /bin/bash
-      changed_when: true
-      when: rustup_check.rc != 0
+      register: go_version
+      changed_when: false
+      when: have.go
+      tags: always
+
+    # @latest Go tools need go >= 1.21; older toolchains cannot even parse
+    # their go.mod. Compare as integers ("1.9" < "1.21").
+    - name: Decide whether Go can build the editor tools
+      ansible.builtin.set_fact:
+        go_ok: "{{ v[0] | int > 1 or (v[0] | int == 1 and v[1] | int >= go_min_minor) }}"
+      vars:
+        v: "{{ (go_version.stdout | default('0.0')).split('.') + ['0'] }}"
+      tags: always
+
+    # ------------------------------------------------------------------ rust
+    - name: Install rustup
+      ansible.builtin.shell: set -o pipefail && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      args:
+        executable: /bin/bash
+        creates: "{{ home_dir }}/.cargo/bin/rustup"
       tags: rust
 
-    - name: Update rustup
+    - name: Update rustup toolchains
       ansible.builtin.command: rustup update
       changed_when: true
-      when: rustup_check.rc == 0 and update_rustup | default(false)
+      when: update_rustup | default(false) | bool
       tags: rust
 
-    # --- PDM (default) ---
+    - name: Install Rust components (rustfmt, rust-analyzer, clippy)
+      ansible.builtin.command: rustup component add rustfmt rust-analyzer clippy
+      register: rustup_components
+      changed_when: "'installing component' in rustup_components.stderr + rustup_components.stdout"
+      tags: [rust, ale]
 
-    - name: Check if pdm is installed
-      ansible.builtin.command: which pdm
-      register: pdm_check
-      failed_when: false
-      changed_when: false
-      when: python_pkg_manager == "pdm"
+    - name: Install stylua (Lua formatter)
+      community.general.cargo:
+        name: stylua
+        state: present
+      tags: [rust, ale]
 
-    # The standalone installer needs ensurepip (python3-venv on Debian),
-    # which is absent on minimal systems — prefer uv, which needs neither.
-    - name: Install pdm
-      ansible.builtin.shell:
-        cmd: |
-          set -o pipefail
-          if command -v uv >/dev/null 2>&1; then
-            uv tool install pdm
-          else
-            curl -sSL https://pdm-project.org/install-pdm.py | python3 -
-          fi
-        executable: /bin/bash
-      changed_when: true
-      when: python_pkg_manager == "pdm" and pdm_check.rc != 0 and ansible_facts['system'] in ["Linux", "Darwin"]
-      tags: python
-
-    - name: Update pdm
-      ansible.builtin.command: pdm self update
-      changed_when: true
-      when: python_pkg_manager == "pdm" and pdm_check.rc == 0 and update_pdm | default(false)
-      tags: python
-
-    # --- uv (alternative) ---
-
-    - name: Check if uv is installed
-      ansible.builtin.command: which uv
-      register: uv_check
-      failed_when: false
-      changed_when: false
-      when: python_pkg_manager == "uv"
-
-    - name: Install uv (which includes uvx)
-      ansible.builtin.shell:
-        cmd: |
-          set -o pipefail
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-        executable: /bin/bash
-      changed_when: true
-      when: python_pkg_manager == "uv" and uv_check.rc != 0
-      tags: python
-
-    - name: Update uv
-      ansible.builtin.command: uv self update
-      changed_when: true
-      when: python_pkg_manager == "uv" and uv_check.rc == 0 and update_uv | default(false)
-      tags: python
-
-    - name: Check if gh (GitHub CLI) is installed
-      ansible.builtin.command: which gh
-      register: gh_check
-      failed_when: false
-      changed_when: false
-
-    - name: Install GitHub CLI (Debian/Ubuntu)  # noqa: command-instead-of-module
-      ansible.builtin.shell: |
-        set -o pipefail
-        keyring=/usr/share/keyrings/githubcli-archive-keyring.gpg
-        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of="$keyring"
-        arch="$(dpkg --print-architecture)"
-        echo "deb [arch=$arch signed-by=$keyring] https://cli.github.com/packages stable main" \
-          | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        sudo apt update
-        sudo apt install gh -y
+    # ---------------------------------------------------------------- python
+    # uv is guaranteed: install.sh installs it before running this playbook.
+    - name: Install Python CLI tools (uv tool)
+      ansible.builtin.command: uv tool install {{ item.pkg }}
       args:
-        executable: /bin/bash
-      changed_when: true
-      when: gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
-      tags: github
-
-    - name: Create ~/.local/bin directory
-      ansible.builtin.file:
-        path: "{{ home_dir }}/.local/bin"
-        state: directory
-        mode: '0755'
-      when: install_github_cli | default(false) and ansible_facts['system'] == "Darwin"
-      tags: github
-
-    - name: Check if gh (GitHub CLI) is installed (macOS)
-      ansible.builtin.command: command -v gh
-      register: gh_check_macos
-      failed_when: false
-      changed_when: false
-      when: install_github_cli | default(false) and ansible_facts['system'] == "Darwin"
-
-    - name: Download and extract GitHub CLI for macOS
-      ansible.builtin.unarchive:
-        src: "https://github.com/cli/cli/releases/download/v2.81.0/gh_2.81.0_macOS_amd64.tar.gz"
-        dest: "/tmp"
-        remote_src: true
-        creates: "/tmp/gh_2.81.0_macOS_amd64"
-      when: install_github_cli | default(false) and gh_check_macos.rc != 0 and ansible_facts['system'] == "Darwin"
-      tags: github
-
-    - name: Copy gh binary to ~/.local/bin
-      ansible.builtin.copy:
-        src: "/tmp/gh_2.81.0_macOS_amd64/bin/gh"
-        dest: "{{ home_dir }}/.local/bin/gh"
-        mode: '0755'
-        remote_src: true
-      when: install_github_cli | default(false) and gh_check_macos.rc != 0 and ansible_facts['system'] == "Darwin"
-      tags: github
-
-    - name: Clean up temporary files
-      ansible.builtin.file:
-        path: "/tmp/gh_2.81.0_macOS_amd64"
-        state: absent
-      when: gh_check.rc != 0 and ansible_facts['system'] == "Darwin"
-      tags: github
-
-    - name: Install GitHub CLI (RHEL/CentOS)
-      ansible.builtin.shell: |
-        sudo dnf install 'dnf-command(config-manager)' -y
-        sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
-        sudo dnf install gh -y
-      args:
-        executable: /bin/bash
-      changed_when: true
-      when: gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
-      tags: github
-
-    - name: Check if Go is installed
-      ansible.builtin.command: which go
-      register: go_check
-      failed_when: false
-      changed_when: false
-      tags: always
-
-    # `grep -o 'go[0-9.]*'` also matched the bare "go" in "go version", which
-    # put a stray blank line ahead of the number — take the version field.
-    - name: Check Go version
-      ansible.builtin.shell:
-        cmd: |
-          set -o pipefail
-          go version | awk '{print $3}' | sed 's/^go//'
-        executable: /bin/bash
-      register: go_version_check
-      when: go_check.rc == 0
-      changed_when: false
-      failed_when: false
-      tags: always
-
-    # The `version` test cannot order Go's mixed two- and three-component
-    # version strings ("1.21" vs "1.19.4"), so compare major/minor as integers.
-    - name: Decide whether the Go toolchain can build the ALE tools
-      ansible.builtin.set_fact:
-        go_tools_supported: >-
-          {{ go_parts[0] | int > 1
-             or (go_parts[0] | int == 1 and go_parts[1] | int >= 21) }}
-      vars:
-        go_parts: "{{ (go_version_check.stdout | default('0', true)).split('.') + ['0', '0'] }}"
-      when: go_check.rc == 0
-      tags: always
-
-    - name: Check if NATS CLI is installed
-      ansible.builtin.command: which nats
-      register: nats_check
-      failed_when: false
-      changed_when: false
-      when: go_check.rc == 0 and install_nats_tools | default(false)
-
-    - name: Install NATS tools
-      ansible.builtin.shell:
-        cmd: |
-          go install github.com/nats-io/natscli/nats@latest
-          go install github.com/nats-io/nats-server/v2@main
-          go install github.com/nats-io/nkeys/nk@latest
-      register: nats_install
-      changed_when: nats_install.rc == 0
-      failed_when: false
-      when: go_check.rc == 0 and ansible_facts['os_family'] != "Windows" and install_nats_tools | default(false) and nats_check.rc != 0
-      tags: nats
-
-    - name: Install Python ALE tools
-      ansible.builtin.command: uvx --from uv uv tool install {{ item }}
+        creates: "{{ home_dir }}/.local/bin/{{ item.bin }}"
       loop:
-        - pyright
-        - ruff
-      register: py_tool_install
-      changed_when: "'Installed' in py_tool_install.stdout"
-      failed_when: false
-      tags: python-tools
+        - { pkg: ruff, bin: ruff }
+        - { pkg: black, bin: black }
+        - { pkg: isort, bin: isort }
+        - { pkg: flake8, bin: flake8 }
+        - { pkg: yamllint, bin: yamllint }
+        - { pkg: vim-vint, bin: vint }
+      tags: [python, ale]
 
-    # @latest modules now declare go >= 1.21 in go.mod. Toolchains older than
-    # 1.21 neither parse those directives nor honour GOTOOLCHAIN, so they fail
-    # with "invalid go version '1.23.0': must match format 1.23" — skip them.
-    - name: Install Go ALE tools
+    - name: Install pdm (uv tool)
+      ansible.builtin.command: uv tool install pdm
+      args:
+        creates: "{{ home_dir }}/.local/bin/pdm"
+      when: install_pdm | default(false) | bool
+      tags: python
+
+    # -------------------------------------------------------------------- go
+    - name: Install Go editor tools
       ansible.builtin.command: go install {{ item.pkg }}
-      environment:
-        GOTOOLCHAIN: auto
-      loop:
-        - { pkg: "golang.org/x/tools/gopls@latest", bin: "gopls" }
-        - { pkg: "github.com/golangci/golangci-lint/cmd/golangci-lint@latest", bin: "golangci-lint" }
-        - { pkg: "golang.org/x/tools/cmd/goimports@latest", bin: "goimports" }
       args:
         creates: "{{ home_dir }}/go/bin/{{ item.bin }}"
-      when:
-        - go_check.rc == 0
-        - go_tools_supported | default(false) | bool
-      tags: go-tools
+      loop:
+        - { pkg: "golang.org/x/tools/gopls@latest", bin: gopls }
+        - { pkg: "golang.org/x/tools/cmd/goimports@latest", bin: goimports }
+        - { pkg: "github.com/golangci/golangci-lint/cmd/golangci-lint@latest", bin: golangci-lint }
+        - { pkg: "mvdan.cc/sh/v3/cmd/shfmt@latest", bin: shfmt }
+      when: have.go and go_ok | bool
+      tags: [go, ale]
 
-    - name: Warn when the Go toolchain is too old for the ALE tools
+    - name: Install NATS tools
+      ansible.builtin.command: go install {{ item.pkg }}
+      args:
+        creates: "{{ home_dir }}/go/bin/{{ item.bin }}"
+      loop:
+        - { pkg: "github.com/nats-io/natscli/nats@latest", bin: nats }
+        - { pkg: "github.com/nats-io/nats-server/v2@latest", bin: nats-server }
+        - { pkg: "github.com/nats-io/nkeys/nk@latest", bin: nk }
+      when: have.go and go_ok | bool and install_nats_tools | default(false) | bool
+      tags: nats
+
+    - name: Warn when Go is missing or too old
       ansible.builtin.debug:
         msg: >-
-          Go {{ go_version_check.stdout | default('unknown') }} is too old for
-          the ALE Go tools (need >= 1.21) — skipping gopls/golangci-lint/goimports.
-          Upgrade Go (e.g. `brew install go`) and re-run with `--tags go-tools`.
-      when:
-        - go_check.rc == 0
-        - not (go_tools_supported | default(false) | bool)
-      tags: go-tools
+          Go {{ go_version.stdout | default('not found') }}: need >= 1.{{ go_min_minor }}
+          for gopls/goimports/golangci-lint/shfmt. Upgrade, then re-run with --tags go.
+      when: not (have.go and go_ok | bool)
+      tags: [go, ale]
 
-    - name: Initialize git submodules  # noqa: command-instead-of-module
-      ansible.builtin.shell:
-        cmd: >-
-          git --git-dir="{{ dotfiles_dir }}/.dotfiles"
-          --work-tree="{{ dotfiles_dir }}" submodule init &&
-          git --git-dir="{{ dotfiles_dir }}/.dotfiles"
-          --work-tree="{{ dotfiles_dir }}" submodule update
-      register: submodule_result
-      changed_when: "'Cloning into' in submodule_result.stderr or 'Submodule path' in submodule_result.stdout"
-      tags: git
-
-    - name: Create necessary directories
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        mode: '0755'
-      loop:
-        - "{{ home_dir }}/.config"
-        - "{{ home_dir }}/.config/zsh"
-        - "{{ home_dir }}/.config/nvim"
-        - "{{ home_dir }}/.vim"
-        - "{{ home_dir }}/.vim/autoload"
-        - "{{ home_dir }}/.local/share/nvim/site/autoload"
-
-    # The bare-repo checkout places vim configs at ~/vim/, but .vimrc and
-    # nvim/init.lua source them from ~/.vim/ — link each file across.
-    - name: Link shared Vim config files into ~/.vim
-      ansible.builtin.file:
-        src: "{{ item }}"
-        dest: "{{ home_dir }}/.vim/{{ item | basename }}"
-        state: link
-        force: true
-      loop: "{{ lookup('fileglob', dotfiles_dir + '/vim/*.vim', wantlist=True) }}"
-
-    - name: Link Neovim init.lua into ~/.config/nvim
-      ansible.builtin.file:
-        src: "{{ dotfiles_dir }}/nvim/init.lua"
-        dest: "{{ home_dir }}/.config/nvim/init.lua"
-        state: link
-        force: true
-
-    - name: Check if Neovim is installed
-      ansible.builtin.command: which nvim
-      register: nvim_check
-      failed_when: false
-      changed_when: false
-      tags: always
-
-    # On systems where /usr/bin/vim is an alternatives link to nvim, the
-    # real-Vim plugin tasks must be skipped (nvim has its own tasks below
-    # and does not read ~/.vim/autoload).
-    - name: Check if Vim is installed (and is real Vim, not a Neovim alias)
-      ansible.builtin.shell:
-        cmd: |
-          set -o pipefail
-          command -v vim && vim --version | head -1 | grep -q '^VIM'
-        executable: /bin/bash
-      register: vim_check
-      failed_when: false
-      changed_when: false
-      tags: always
-
-    - name: Check if Vim-Plug is installed for Vim
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.vim/autoload/plug.vim"
-      register: vim_plug_stat
-      tags: always
-
-    - name: Download Vim-Plug for Vim
-      ansible.builtin.get_url:
-        url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-        dest: "{{ home_dir }}/.vim/autoload/plug.vim"
-        mode: '0644'
-      register: vim_plug_download
-      when: vim_check.rc == 0 and not vim_plug_stat.stat.exists
-      tags: vim-plug
-
-    # vim-plug clones only the plugins that are missing, so this is safe to run
-    # every pass. Gating it on the mere existence of ~/.vim/plugged meant any
-    # plugin added after the first run was never installed.
-    - name: Install Vim plugins
-      ansible.builtin.command: vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
-      register: vim_plugin_install
-      changed_when: "'Installing' in vim_plugin_install.stdout or 'Cloning' in vim_plugin_install.stdout"
-      failed_when: false
-      when: vim_check.rc == 0
-      tags: vim-plugins
-
-    - name: Check if Vim-Plug is installed for Neovim
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.local/share/nvim/site/autoload/plug.vim"
-      register: nvim_plug_stat
-      tags: always
-
-    - name: Download Vim-Plug for Neovim
-      ansible.builtin.get_url:
-        url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-        dest: "{{ home_dir }}/.local/share/nvim/site/autoload/plug.vim"
-        mode: '0644'
-      register: nvim_plug_download
-      when: nvim_check.rc == 0 and not nvim_plug_stat.stat.exists
-      tags: nvim-plug
-
-    # plug#begin('~/.vim/plugged') in .vimrc is shared by both editors, so this
-    # installs into the same tree as the Vim task above and is likewise a no-op
-    # once every declared plugin is present.
-    - name: Install Neovim plugins
-      ansible.builtin.command: nvim --headless -c 'PlugInstall --sync' -c 'qa!'
-      register: nvim_plugin_install
-      changed_when: "'Installing' in nvim_plugin_install.stderr or 'Cloning' in nvim_plugin_install.stderr"
-      failed_when: false
-      when: nvim_check.rc == 0
-      tags: nvim-plugins
-
-    # coc.nvim ships a prebuilt build/index.js only on its `release` branch.
-    # A clone left on master (installed before the branch pin, or moved by a
-    # stray checkout) makes every Vim start print
-    # "build/index.js not found, please install dependencies and compile".
-    - name: Check for the prebuilt coc.nvim bundle
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.vim/plugged/coc.nvim/build/index.js"
-      register: coc_build_stat
-      tags: vim-plugins
-
-    - name: Check whether coc.nvim is checked out
-      ansible.builtin.stat:
-        path: "{{ home_dir }}/.vim/plugged/coc.nvim/.git"
-      register: coc_repo_stat
-      tags: vim-plugins
-
-    - name: Put coc.nvim back on its prebuilt release branch  # noqa: command-instead-of-module
-      ansible.builtin.command: "{{ item }}"
-      args:
-        chdir: "{{ home_dir }}/.vim/plugged/coc.nvim"
-      loop:
-        - git fetch origin release:refs/remotes/origin/release
-        - git checkout -B release origin/release
-      changed_when: true
-      when: coc_repo_stat.stat.exists and not coc_build_stat.stat.exists
-      tags: vim-plugins
-
-    # ------------------------------------------------------------------
-    # ALE fixers, linters and language-server "completers"
-    # npm / cargo / Homebrew use community.general modules (truly idempotent:
-    # they only install what is missing and report changed accurately).
-    # Go / uv / rustup have no modules, so they stay shell with presence
-    # guards + an honest changed_when.
-    # Requires the community.general collection: run this playbook via
-    # `uvx --from ansible ansible-playbook` (the ansible package bundles it),
-    # not `--from ansible-core`.
-    # ------------------------------------------------------------------
-    - name: Check if npm is available
-      ansible.builtin.command: which npm
-      register: npm_check
-      changed_when: false
-      failed_when: false
-      tags: ale, ale-npm
-
+    # ------------------------------------------------------------------- npm
     - name: Point npm at a user-writable global prefix when needed
       ansible.builtin.shell: |
         prefix="$(npm config get prefix)"
         if [ ! -w "$prefix" ]; then
-          mkdir -p "$HOME/.local"
           npm config set prefix "$HOME/.local"
           echo "CHANGED prefix -> $HOME/.local (was $prefix)"
         fi
       register: npm_prefix
       changed_when: "'CHANGED' in npm_prefix.stdout"
-      when: npm_check.rc == 0
-      tags: ale, ale-npm
+      when: have.npm
+      tags: [npm, ale]
 
-    - name: Install ALE JS/TS fixers, linters and language servers (npm)
+    - name: Install JS/TS formatters, linters and language servers (npm)
       community.general.npm:
         name: "{{ item }}"
         global: true
@@ -442,97 +165,87 @@
         - jsonlint
         - markdownlint-cli
         - clang-format
-      when: npm_check.rc == 0
-      tags: ale, ale-npm
+      when: have.npm
+      tags: [npm, ale]
 
-    - name: Install ALE Python fixers and linters (uv tool)
-      ansible.builtin.shell: |
-        command -v uv >/dev/null 2>&1 || { echo "uv not found, skipping"; exit 0; }
-        for tool in black isort ruff flake8 yamllint vim-vint; do
-          uv tool install "$tool" 2>&1 || echo "warning: failed to install $tool"
-        done
-      register: uv_tools
-      # uv prints "Installed N executable(s)" on a real install, and
-      # "... is already installed" (lowercase) when nothing changes.
-      changed_when: "'Installed' in uv_tools.stdout"
-      tags: ale, ale-python
-
-    - name: Install ALE Go fixers and language servers (go install)
-      ansible.builtin.shell:
-        cmd: |
-          command -v go >/dev/null 2>&1 || { echo "go not found, skipping"; exit 0; }
-          changed=0
-          # Only build a tool when its binary is missing (go install otherwise
-          # recompiles on every run). Try @latest, then fall back to versions
-          # that build with older Go toolchains.
-          install_if_missing() {
-            tool=$1; shift
-            command -v "$tool" >/dev/null 2>&1 && return 0
-            for ref in "$@"; do
-              if go install "$ref" 2>/dev/null; then changed=1; return 0; fi
-            done
-            echo "warning: could not install $tool (consider upgrading Go)"
-          }
-          install_if_missing gopls golang.org/x/tools/gopls@latest golang.org/x/tools/gopls@v0.11.0
-          install_if_missing goimports golang.org/x/tools/cmd/goimports@latest golang.org/x/tools/cmd/goimports@v0.5.0
-          install_if_missing shfmt mvdan.cc/sh/v3/cmd/shfmt@latest mvdan.cc/sh/v3/cmd/shfmt@v3.6.0
-          [ "$changed" -eq 1 ] && echo "CHANGED"
-          exit 0
-      environment:
-        PATH: "{{ home_dir }}/go/bin:{{ ansible_facts['env']['PATH'] }}"
-      register: go_tools
-      changed_when: "'CHANGED' in go_tools.stdout"
-      tags: ale, ale-go
-
-    - name: Install ALE Rust components (rustfmt, rust-analyzer, clippy)
-      ansible.builtin.shell: |
-        command -v rustup >/dev/null 2>&1 || { echo "rustup not found, skipping"; exit 0; }
-        rustup component add rustfmt rust-analyzer clippy
-      register: rustup_components
-      # rustup prints "info: installing component ..." only on a real install.
-      changed_when: "'installing component' in rustup_components.stdout"
-      tags: ale, ale-rust
-
-    - name: Check if cargo is available
-      ansible.builtin.command: which cargo
-      register: cargo_check
-      changed_when: false
-      failed_when: false
-      tags: ale, ale-stylua, always
-
-    - name: Install ALE Rust fixer (stylua via cargo)
-      community.general.cargo:
-        name: stylua
-        state: present
-      when: cargo_check.rc == 0
-      tags: ale, ale-stylua
-
-    - name: Install shellcheck (ALE shell linter) on macOS
+    # ---------------------------------------------------------------- github
+    # Linux installs gh from its package repo via system.yml (needs root).
+    - name: Install GitHub CLI and shellcheck (macOS)
       community.general.homebrew:
-        name: shellcheck
+        name: [gh, shellcheck]
         state: present
       when: ansible_facts['system'] == "Darwin"
-      tags: ale, ale-shellcheck
+      tags: [github, ale]
 
-    # The apt/dnf shellcheck tasks need root. This playbook is otherwise
-    # non-root, so they are opt-in: run with -e install_system_packages=true
-    # (and --ask-become-pass) to install shellcheck system-wide.
-    - name: Install shellcheck (ALE shell linter) on Debian/Ubuntu
-      ansible.builtin.apt:
-        name: shellcheck
-        state: present
-      become: true
-      when: install_system_packages | default(false) and ansible_facts['os_family'] == "Debian"
-      tags: ale, ale-shellcheck
+    # ------------------------------------------------------------- vim/nvim
+    # The checkout puts editor configs at ~/vim and ~/nvim; the editors read
+    # them from ~/.vim and ~/.config/nvim.
+    - name: Create editor directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ home_dir }}/.vim/autoload"
+        - "{{ home_dir }}/.config/nvim"
+        - "{{ home_dir }}/.local/share/nvim/site/autoload"
+      tags: [vim, nvim]
 
-    - name: Install shellcheck (ALE shell linter) on RHEL/Fedora
-      ansible.builtin.dnf:
-        name: ShellCheck
-        state: present
-      become: true
-      when: install_system_packages | default(false) and ansible_facts['os_family'] == "RedHat"
-      tags: ale, ale-shellcheck
+    - name: Link Vim config files into ~/.vim
+      ansible.builtin.file:
+        src: "{{ item }}"
+        dest: "{{ home_dir }}/.vim/{{ item | basename }}"
+        state: link
+        force: true
+      loop: "{{ query('fileglob', home_dir + '/vim/*.vim') }}"
+      tags: [vim, nvim]
 
-    - name: Display completion message
-      ansible.builtin.debug:
-        msg: "Dotfiles installation complete!"
+    - name: Link Neovim init.lua into ~/.config/nvim
+      ansible.builtin.file:
+        src: "{{ home_dir }}/nvim/init.lua"
+        dest: "{{ home_dir }}/.config/nvim/init.lua"
+        state: link
+        force: true
+      tags: nvim
+
+    - name: Download vim-plug for Vim and Neovim
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        dest: "{{ item }}/plug.vim"
+        mode: '0644'
+        force: false  # downloads only when missing
+      loop:
+        - "{{ home_dir }}/.vim/autoload"
+        - "{{ home_dir }}/.local/share/nvim/site/autoload"
+      tags: [vim, nvim]
+
+    # Both editors share ~/.vim/plugged, so one install covers both. vim-plug
+    # clones only missing plugins, so running every pass is cheap.
+    - name: Install editor plugins
+      ansible.builtin.command: >-
+        {{ "vim -es -u " + home_dir + "/.vimrc -i NONE -c 'PlugInstall --sync' -c qa"
+           if have.vim else "nvim --headless -c 'PlugInstall --sync' -c 'qa!'" }}
+      register: plug_install
+      changed_when: "'Cloning' in (plug_install.stdout + plug_install.stderr)"
+      failed_when: false
+      when: have.vim or have.nvim
+      tags: [vim, nvim]
+
+    # coc.nvim ships its prebuilt build/index.js only on the `release` branch;
+    # a clone left on master errors on every editor start.
+    - name: Check for the prebuilt coc.nvim bundle
+      ansible.builtin.stat:
+        path: "{{ home_dir }}/.vim/plugged/coc.nvim/build/index.js"
+      register: coc_build
+      tags: [vim, nvim]
+
+    - name: Put coc.nvim back on its release branch  # noqa: command-instead-of-module
+      ansible.builtin.shell: >-
+        git fetch origin release:refs/remotes/origin/release &&
+        git checkout -B release origin/release
+      args:
+        chdir: "{{ home_dir }}/.vim/plugged/coc.nvim"
+        removes: "{{ home_dir }}/.vim/plugged/coc.nvim/.git"
+      changed_when: true
+      when: not coc_build.stat.exists
+      tags: [vim, nvim]

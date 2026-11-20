@@ -1,138 +1,94 @@
 # dotfiles
 
-Personal terminal and development environment configuration files for a productive development setup. Shell configs (Zsh/Bash), Vim/Neovim settings, Git configuration, and development tools - all automated with Ansible.
+Shell (bash/zsh), Vim/Neovim, git and dev-tool setup, managed as a **bare git
+repo** whose work tree is `$HOME`. No symlink farm, no copying.
 
-## Quick Start
-
-```bash
-git clone https://github.com/jvishnefske/dotfiles ~/.dotfiles
-cd ~/.dotfiles
-./install.sh
-```
-
-## Features
-
-- **Shell Configuration**: Zsh with Oh-My-Zsh, Bash, and shared profile settings
-- **Text Editors**: Vim and Neovim configurations with plugin management
-- **Git Configuration**: Personal Git settings and aliases
-- **Development Tools**: Python virtual environment wrapper, NATS tools
-- **System Configuration**: Network mounting, systemd services
-- **Automated Installation**: Ansible-based setup with dependency management
-Personal terminal and development environment configuration managed as a bare git repository.
-
-## Quick Start
-
-Bootstrap on a fresh machine (no clone needed):
+## Install
 
 ```bash
-curl -Lks https://raw.githubusercontent.com/jvishnefske/dotfiles/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jvishnefske/dotfiles/main/.bin/install.sh | bash
 ```
 
-Or manually:
+This:
+
+1. clones the repo bare into `~/.dotfiles` and checks it out into `$HOME`
+   (files it would overwrite are moved to `~/.dotfiles-backup/`);
+2. fetches the oh-my-zsh submodule into `~/ohmyzsh`;
+3. installs [uv](https://docs.astral.sh/uv/) if missing (user-local, no sudo);
+4. runs `~/.bin/install.yml`, which installs user-level tooling — never sudo.
+
+System packages (git, vim, neovim, gcc, go, node, clangd, shellcheck, gh) need
+root and are a separate step:
 
 ```bash
-git clone --bare https://github.com/jvishnefske/dotfiles.git $HOME/.cfg
-alias dotfiles='git --git-dir=$HOME/.cfg --work-tree=$HOME'
-dotfiles config --local status.showUntrackedFiles no
-dotfiles checkout
+~/.bin/install-system.sh
 ```
 
-If checkout fails due to existing files, back them up:
+Both are idempotent; re-run them any time.
 
-```bash
-mkdir -p $HOME/.dotfiles-backup
-dotfiles checkout 2>&1 | grep -E "^\s+" | awk '{print $1}' | \
-  xargs -I{} bash -c 'mkdir -p "$HOME/.dotfiles-backup/$(dirname {})" && mv "$HOME/{}" "$HOME/.dotfiles-backup/{}"'
-dotfiles checkout
-```
-
-## How It Works
-
-This repo uses the bare git repository technique:
-
-- `$HOME/.cfg` is a bare git repo (no working tree of its own)
-- `$HOME` is the working tree — dotfiles live directly where programs expect them
-- The `dotfiles` alias wraps git with `--git-dir` and `--work-tree` flags
-- `status.showUntrackedFiles no` keeps `git status` clean (only shows tracked files)
-
-No symlinks. No copying. Files are managed in-place.
-
-## Daily Usage
+## Daily use
 
 ```bash
 dotfiles status
 dotfiles add ~/.vimrc
-dotfiles commit -m "update vim config"
+dotfiles commit -m "vim: ..."
 dotfiles push
+dotfiles pull && dotfiles submodule update --init   # on another machine
 ```
 
-## What Gets Installed
+`dotfiles` is an alias for `git --git-dir=$HOME/.dotfiles --work-tree=$HOME`,
+defined in `.bashrc` and `.zshrc`. Untracked files are hidden from `status`.
 
-The `install.sh` bootstrap script:
-1. Clones the bare repo into `$HOME/.cfg`
-2. Checks out dotfiles into `$HOME`
-3. Adds the `dotfiles` alias to `.bashrc` and `.zshrc`
-4. Installs `uv` (needed to run ansible)
-5. Runs the ansible playbook for additional tooling
+## What the playbook installs
 
-### Ansible Playbook
+| Tag    | Tools                                                                 |
+|--------|-----------------------------------------------------------------------|
+| `rust` | rustup, rustfmt, rust-analyzer, clippy, stylua                        |
+| `python` | ruff, black, isort, flake8, yamllint, vint (via `uv tool`)          |
+| `go`   | gopls, goimports, golangci-lint, shfmt (needs Go ≥ 1.21)             |
+| `npm`  | prettier, eslint, typescript(-language-server), pyright, bash/yaml/json LSPs, markdownlint, clang-format |
+| `vim`, `nvim` | vim-plug, plugins, `~/.vim/*.vim` and `~/.config/nvim/init.lua` links |
+| `ale`  | every linter/formatter/LSP above                                      |
 
-The playbook installs development tools (idempotent — safe to re-run):
-
-- **Rust**: rustup toolchain manager
-- **Python**: pdm (default) or uv (`-e pkg_manager=uv`)
-- **GitHub CLI**: gh
-- **Go tools**: NATS ecosystem (`-e install_nats_tools=true`)
-- **Vim/Neovim**: Vim-Plug + plugins
-
-Run specific tags:
+Run a subset, or opt in to extras:
 
 ```bash
-uvx --from ansible-core ansible-playbook ~/install.yml --tags python
-uvx --from ansible-core ansible-playbook ~/install.yml --tags rust
-uvx --from ansible-core ansible-playbook ~/install.yml --tags vim,nvim
+uvx --from ansible ansible-playbook ~/.bin/install.yml --tags vim,rust
+uvx --from ansible ansible-playbook ~/.bin/install.yml \
+    -e install_pdm=true -e install_nats_tools=true -e update_rustup=true
+uvx --from ansible-core ansible-playbook ~/.bin/setup_vcpkg.yml   # vcpkg
 ```
 
-## Tracked Files
+## Layout
 
 ```
-~/.bashrc           # Bash configuration
-~/.zshrc            # Zsh configuration
-~/.profile          # Shared shell profile
-~/.gitconfig        # Git configuration
-~/.vimrc            # Vim configuration
-~/vim/              # Vim extras
-~/nvim/             # Neovim configuration
-~/ohmyzsh/          # Oh-My-Zsh framework (submodule)
-~/install.sh        # Bootstrap script
-~/install.yml       # Ansible playbook
+.profile        environment: PATH, EDITOR, VCPKG_ROOT (POSIX sh, sourced by both shells)
+.bashrc         interactive bash: prompt, aliases
+.zshrc          interactive zsh: oh-my-zsh + plugins
+.gitconfig      identity, gh credential helper
+.vimrc          one line choosing a Vim flavor (also used by Neovim)
+vim/core.vim    editor settings shared by both flavors
+vim/common.vim  coc.nvim flavor (default)
+vim/ale.vim     ALE flavor — point .vimrc here to switch
+nvim/init.lua   sources ~/.vimrc
+ohmyzsh/        oh-my-zsh (submodule)
+.bin/           install.sh, install.yml (user), system.yml (root), setup_vcpkg.yml
+.config/system/ machine-specific systemd units, fstab and samba snippets (not installed)
 ```
 
-## Machine-Specific Config
+## Machine-specific settings
 
-For settings that differ per machine, use local override files (not tracked):
-
-```bash
-# In .zshrc or .bashrc
-[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
-```
-
-Or git's includeIf for per-directory git identity:
+Put untracked overrides in `~/.profile.local`, `~/.bashrc.local` or
+`~/.zshrc.local`; each is sourced last if present. Per-directory git identity:
 
 ```gitconfig
 [includeIf "gitdir:~/work/"]
     path = ~/.gitconfig.work
 ```
 
-## Platform Support
-
-- macOS, Linux (Debian, RHEL)
-- Requirements: curl, bash, git, python3
-
 ## Troubleshooting
 
-- **Checkout conflicts**: Back up existing files (see Quick Start above)
-- **uv not found**: The installer prompts to install it
-- **Ansible errors**: Ensure `uvx --from ansible-core` works
-- **Plugin install fails**: Run `:PlugInstall` manually in Vim/Neovim
-- **IDE doesn't see repo**: VSCode doesn't detect bare repos — use the terminal alias
+- **zsh says oh-my-zsh is missing:** `dotfiles submodule update --init`.
+- **Go tools skipped:** Go is older than 1.21; upgrade it, then `--tags go`.
+- **coc.nvim "build/index.js not found":** re-run the playbook with `--tags vim`.
+- **IDEs don't see the repo:** expected for bare repos; use the `dotfiles` alias.

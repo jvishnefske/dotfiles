@@ -1,23 +1,40 @@
-pathadd() {
-    if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
-        PATH="${PATH:+"$PATH:"}$1"
-    fi
-}
-export PATH=/usr/bin:/bin:/usr/local/bin
-export PATH=$HOME/bin:$HOME/jdk-current/bin:$HOME/go-current/bin:$HOME/.local/bin:$PATH
-#[ -x $HOME/.dotfiles/auto-nfs.sh ] && $HOME/.dotfiles/auto-nfs.sh 2>&1 >/dev/null
-    . "$HOME/.cargo/env"
+# ~/.profile — environment shared by sh, bash and zsh.
+# shellcheck shell=sh
+# POSIX sh only (dash reads this at login). Safe to source more than once:
+# each directory is added to PATH at most once, and only if it exists.
 
-pathadd() {
-    if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
-        PATH="${PATH:+"$PATH:"}$1"
-    fi
+path_prepend() {
+    [ -d "$1" ] || return 0
+    case ":$PATH:" in *":$1:"*) ;; *) PATH="$1${PATH:+:$PATH}" ;; esac
 }
-pathadd $HOME/.local/arm-gnu-toolchain-13.2.Rel1-x86_64-arm-none-eabi/bin/
-pathadd $HOME/jdk-current/bin
-pathadd $HOME/go-current/bin
-pathadd $HOME/.local/bin
-pathadd $HOME/.local/node-v22.17.0-linux-x64/bin
-pathadd /opt/rocm-6.2.0/lib/llvm/bin/
+path_append() {
+    [ -d "$1" ] || return 0
+    case ":$PATH:" in *":$1:"*) ;; *) PATH="${PATH:+$PATH:}$1" ;; esac
+}
 
-. "$HOME/.local/bin/env"
+# Toolchains (lower priority than system tools)
+path_append "$HOME/jdk-current/bin"
+path_append "$HOME/go-current/bin"
+path_append /opt/rocm-6.2.0/lib/llvm/bin
+for d in "$HOME"/.local/arm-gnu-toolchain-*/bin "$HOME"/.local/node-v*/bin; do
+    path_append "$d"
+done
+
+# Vcpkg (installed by ~/.bin/setup_vcpkg.yml)
+if [ -d "$HOME/.local/vcpkg" ]; then
+    export VCPKG_ROOT="$HOME/.local/vcpkg"
+    path_prepend "$VCPKG_ROOT"
+fi
+
+# User tool bins (win over system): go install, cargo/rustup, uv/pip/npm
+path_prepend "$HOME/go/bin"
+path_prepend "$HOME/.cargo/bin"
+path_prepend "$HOME/.local/bin"
+path_prepend "$HOME/bin"
+export PATH
+
+export EDITOR=vim
+
+# Machine-specific settings (untracked)
+# shellcheck source=/dev/null
+[ -f "$HOME/.profile.local" ] && . "$HOME/.profile.local"
