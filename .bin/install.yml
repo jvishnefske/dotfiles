@@ -11,11 +11,11 @@
   gather_facts: true
   become: false
   vars:
-    home_dir: "{{ ansible_facts['env']['HOME'] }}"
+    home_dir: "{{ lookup('env', 'HOME') }}"
     go_min_minor: 21
   environment:
     # Tools installed by earlier tasks must be visible to later ones.
-    PATH: "{{ home_dir }}/.local/bin:{{ home_dir }}/.cargo/bin:{{ home_dir }}/go/bin:{{ ansible_facts['env']['PATH'] }}"
+    PATH: "{{ home_dir }}/.local/bin:{{ home_dir }}/.cargo/bin:{{ home_dir }}/go/bin:{{ lookup('env', 'PATH') }}"
     GOTOOLCHAIN: auto
 
   tasks:
