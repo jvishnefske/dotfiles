@@ -35,7 +35,7 @@ checkout_dotfiles() {
         return
     fi
     echo "Backing up conflicting files to $BACKUP_DIR..."
-    dotfiles checkout 2>&1 | awk '/^\t/ {print $1}' | while read -r file; do
+    { dotfiles checkout 2>&1 || true; } | awk '/^\t/ {print $1}' | while read -r file; do
         mkdir -p "$BACKUP_DIR/$(dirname "$file")"
         mv "$HOME/$file" "$BACKUP_DIR/$file"
         echo "  $file"
