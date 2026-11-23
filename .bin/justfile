@@ -1,0 +1,189 @@
+# Dotfiles installer (justfile rewrite of install.sh)
+#
+# Usage:
+#   just              # run the full install (same order as install.sh)
+#   just --list       # list the individual steps
+#   just <step>       # run one step, e.g. `just airprompt`
+#
+# Requires `just` on PATH. Paths resolve relative to this justfile.
+
+dotfiles_repo := "https://github.com/jvishnefske/dotfiles.git"
+dotfiles_dir  := env_var("HOME") + "/.dotfiles"
+backup_dir    := env_var("HOME") + "/.dotfiles-backup"
+# Literal line written into shell rc files; $HOME must stay unexpanded.
+dotfiles_alias := 'alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"'
+airprompt_src := justfile_directory() + "/airprompt"
+
+default: install
+
+# Full install, in the same order as the original script.
+install: header bare-repo checkout shell-alias install-uv ansible airprompt airprompt-init
+    @echo ""
+    @echo "Dotfiles installation complete!"
+    @echo "Open a new shell or run: source ~/.bashrc (or ~/.zshrc)"
+    @echo "Then use 'dotfiles' as a git alias for managing your dotfiles."
+
+[private]
+header:
+    @echo "=== Dotfiles installer (bare repo) ==="
+
+# Clone the bare repo (or verify an existing one) and hide untracked files.
+bare-repo:
+    #!/usr/bin/env bash
+    set -eu
+    if [ -d "{{dotfiles_dir}}" ] && git --git-dir="{{dotfiles_dir}}" rev-parse --is-bare-repository &>/dev/null; then
+        echo "Bare repo already exists at {{dotfiles_dir}}, skipping clone."
+    elif [ -d "{{dotfiles_dir}}" ]; then
+        echo "Error: {{dotfiles_dir}} exists but is not a bare repo."
+        echo "Please remove or rename it before running this installer."
+        exit 1
+    else
+        echo "Cloning dotfiles bare repo into {{dotfiles_dir}}..."
+        git clone --bare "{{dotfiles_repo}}" "{{dotfiles_dir}}"
+    fi
+    git --git-dir="{{dotfiles_dir}}" --work-tree="$HOME" config status.showUntrackedFiles no
+
+# Check out dotfiles into $HOME, backing up any conflicting files first.
+checkout: bare-repo
+    #!/usr/bin/env bash
+    set -eu
+    git_dt=(git --git-dir="{{dotfiles_dir}}" --work-tree="$HOME")
+    echo "Checking out dotfiles into $HOME..."
+    if "${git_dt[@]}" checkout 2>/dev/null; then
+        echo "Checkout successful."
+        exit 0
+    fi
+    echo "Checkout conflicts detected. Backing up existing files to {{backup_dir}}..."
+    mkdir -p "{{backup_dir}}"
+    "${git_dt[@]}" checkout 2>&1 \
+        | grep -E "^\s+" \
+        | awk '{print $1}' \
+        | while read -r file; do
+            dest="{{backup_dir}}/$file"
+            mkdir -p "$(dirname "$dest")"
+            mv "$HOME/$file" "$dest"
+            echo "  Backed up: $file"
+        done
+    "${git_dt[@]}" checkout
+    echo "Checkout successful after backing up conflicts."
+
+# Add the `dotfiles` alias to ~/.bashrc and ~/.zshrc (if present).
+shell-alias:
+    #!/usr/bin/env bash
+    set -eu
+    add_alias() {
+        local rc="$1"
+        [ -f "$rc" ] || return 0
+        if grep -qF 'alias dotfiles=' "$rc"; then
+            echo "Dotfiles alias already present in $rc"
+        else
+            {
+                echo ""
+                echo "# Dotfiles bare repo alias"
+                printf '%s\n' '{{dotfiles_alias}}'
+            } >> "$rc"
+            echo "Added dotfiles alias to $rc"
+        fi
+    }
+    add_alias "$HOME/.bashrc"
+    add_alias "$HOME/.zshrc"
+
+# Install uv if missing (asks first; exits if declined, since ansible needs it).
+install-uv:
+    #!/usr/bin/env bash
+    set -eu
+    if command -v uv &>/dev/null; then
+        echo "uv is already installed."
+        exit 0
+    fi
+    echo "uv is not installed."
+    read -p "Would you like to install uv? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "uv installation cancelled. Cannot proceed with ansible."
+        exit 1
+    fi
+    echo "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    if [ -f "$HOME/.cargo/env" ]; then
+        # shellcheck source=/dev/null
+        source "$HOME/.cargo/env"
+    fi
+    export PATH="$HOME/.cargo/bin:$PATH"
+    if ! command -v uv &>/dev/null; then
+        echo "Error: uv installation failed."
+        exit 1
+    fi
+    echo "uv installed successfully."
+
+# Run the non-root ansible playbook for additional tooling.
+ansible: install-uv
+    #!/usr/bin/env bash
+    set -eu
+    playbook="{{justfile_directory()}}/install.yml"
+    if [ ! -f "$playbook" ]; then
+        echo "Warning: install.yml not found, skipping ansible playbook."
+        exit 0
+    fi
+    echo "Running ansible playbook..."
+    # Non-root tasks only. For root-level packages (e.g. GitHub CLI) run separately:
+    #   uvx --from ansible-core ansible-playbook install-system.yml --ask-become-pass -e "install_github_cli=true"
+    uvx --from ansible-core ansible-playbook "$playbook"
+
+# Build and install airprompt, and link its Vim plugin.
+airprompt:
+    #!/usr/bin/env bash
+    set -eu
+    src="{{airprompt_src}}"
+    if [ ! -f "$src/Cargo.toml" ]; then
+        echo "Warning: $src not found, skipping airprompt."
+        exit 0
+    fi
+    # rustup may have just been installed by the playbook in another shell.
+    if [ -f "$HOME/.cargo/env" ]; then
+        # shellcheck source=/dev/null
+        source "$HOME/.cargo/env"
+    fi
+    if ! command -v cargo &>/dev/null; then
+        echo "Warning: cargo not found, skipping airprompt (install rustup first)."
+        exit 0
+    fi
+    echo "Building and installing airprompt..."
+    if ! cargo install --locked --path "$src"; then
+        echo "Warning: airprompt build failed, keeping the existing prompt."
+        exit 0
+    fi
+    # Vim statusline plugin (native package, loaded automatically by Vim 9).
+    pack="$HOME/.vim/pack/airprompt/start"
+    link="$pack/airprompt"
+    if [ -e "$link" ] && [ ! -L "$link" ]; then
+        echo "Warning: $link exists and is not a symlink, leaving it alone."
+    else
+        mkdir -p "$pack"
+        ln -sfn "$src/vim" "$link"
+        echo "Linked Vim statusline: $link -> $src/vim"
+    fi
+
+# Hook `airprompt init` into the shell rc files (only if airprompt is on PATH).
+airprompt-init:
+    #!/usr/bin/env bash
+    set -eu
+    if ! command -v airprompt &>/dev/null; then
+        exit 0
+    fi
+    add_init() {
+        local rc="$1" shell="$2"
+        [ -f "$rc" ] || return 0
+        if grep -qF 'airprompt init' "$rc"; then
+            echo "airprompt init already present in $rc"
+        else
+            {
+                echo ""
+                echo "# airprompt prompt"
+                echo "command -v airprompt >/dev/null && eval \"\$(airprompt init $shell)\""
+            } >> "$rc"
+            echo "Added airprompt init to $rc"
+        fi
+    }
+    add_init "$HOME/.bashrc" bash
+    add_init "$HOME/.zshrc" zsh

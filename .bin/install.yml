@@ -335,7 +335,7 @@
     # every pass. Gating it on the mere existence of ~/.vim/plugged meant any
     # plugin added after the first run was never installed.
     - name: Install Vim plugins
-      ansible.builtin.command: vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
+      ansible.builtin.command: timeout 600 vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
       register: vim_plugin_install
       changed_when: "'Installing' in vim_plugin_install.stdout or 'Cloning' in vim_plugin_install.stdout"
       failed_when: false
@@ -361,7 +361,7 @@
     # installs into the same tree as the Vim task above and is likewise a no-op
     # once every declared plugin is present.
     - name: Install Neovim plugins
-      ansible.builtin.command: nvim --headless -c 'PlugInstall --sync' -c 'qa!'
+      ansible.builtin.command: timeout 600 nvim --headless -c 'PlugInstall --sync' -c 'qa!'
       register: nvim_plugin_install
       changed_when: "'Installing' in nvim_plugin_install.stderr or 'Cloning' in nvim_plugin_install.stderr"
       failed_when: false
