@@ -232,7 +232,7 @@
       register: vim_plugged_stat
 
     - name: Install Vim plugins
-      ansible.builtin.command: vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
+      ansible.builtin.command: timeout 600 vim -es -u "{{ home_dir }}/.vimrc" -i NONE -c "PlugInstall" -c "qa"
       changed_when: true
       when: vim_check.rc == 0 and not vim_plugged_stat.stat.exists
       tags: vim-plugins
@@ -257,7 +257,7 @@
       register: nvim_plugged_stat
 
     - name: Install Neovim plugins
-      ansible.builtin.command: nvim --headless -c 'autocmd User PlugComplete quitall' -c 'PlugInstall' -c 'sleep 500m'
+      ansible.builtin.command: timeout 600 nvim --headless +PlugInstall +qall
       changed_when: true
       when: nvim_check.rc == 0 and not nvim_plugged_stat.stat.exists
       tags: nvim-plugins
