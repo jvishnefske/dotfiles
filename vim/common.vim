@@ -3,6 +3,16 @@
 
 source ~/.vim/core.vim
 
+" coc.nvim needs global `crypto` (Node 19+). `just coc-node` (in ~/.bin) writes the
+" path of a suitable node to ~/.vim/coc-node-path.
+let s:coc_node_file = expand('~/.vim/coc-node-path')
+if filereadable(s:coc_node_file)
+  let s:coc_node = trim(join(readfile(s:coc_node_file, '', 1), ''))
+  if executable(s:coc_node)
+    let g:coc_node_path = s:coc_node
+  endif
+endif
+
 " ---- Plugins (vim-plug) ---------------------------------------------------
 call plug#begin('~/.vim/plugged')
 Plug 'morhetz/gruvbox'

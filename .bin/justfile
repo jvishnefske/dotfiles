@@ -14,6 +14,8 @@ backup_dir    := env_var("HOME") + "/.dotfiles-backup"
 dotfiles_alias := 'alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HOME"'
 airprompt_src := justfile_directory() + "/airprompt"
 
+import 'recipes/coc.just'
+
 default: install
 
 # Full install, in the same order as the original script.

@@ -533,6 +533,21 @@
       when: install_system_packages | default(false) and ansible_facts['os_family'] == "RedHat"
       tags: ale, ale-shellcheck
 
+    # coc.nvim needs Node 19+ (global crypto); records a suitable node path for common.vim.
+    - name: Record coc.nvim node path
+      ansible.builtin.command: just --justfile "{{ playbook_dir }}/justfile" coc-node
+      args:
+        creates: "{{ home_dir }}/.vim/coc-node-path"
+      register: coc_node_result
+      failed_when: false
+      changed_when: coc_node_result.rc == 0 and 'skipped, since' not in (coc_node_result.stdout | default(''))
+      tags: coc-node
+
+    - name: Warn if coc.nvim node path could not be recorded
+      ansible.builtin.debug:
+        msg: "coc-node failed (install nvm, then run: just coc-node): {{ coc_node_result.stderr | default(coc_node_result.msg) }}"
+      when: coc_node_result is failed
+
     - name: Display completion message
       ansible.builtin.debug:
         msg: "Dotfiles installation complete!"
