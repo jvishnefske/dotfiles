@@ -67,7 +67,10 @@ function! s:NodeMajor(node) abort
   return str2nr(matchstr(system(a:node . ' --version'), '^v\zs\d\+'))
 endfunction
 
-let g:coc_node_path = s:CocNodePath()
+" A path recorded by `just coc-node` (read above) wins; otherwise auto-detect.
+if !exists("g:coc_node_path")
+  let g:coc_node_path = s:CocNodePath()
+endif
 
 let g:coc_global_extensions = [
       \ 'coc-rust-analyzer',
