@@ -29,8 +29,8 @@ class Cast:
 
     def roles(self) -> dict[str, str]:
         r = {self.ca: "ca", self.secmgr: "secmgr", self.releasebot: "service"}
-        r.update({c: "custodian" for c in self.custodians})
-        r.update({d: "developer" for d in self.developers})
+        r.update(dict.fromkeys(self.custodians, "custodian"))
+        r.update(dict.fromkeys(self.developers, "developer"))
         return r
 
 
@@ -119,7 +119,7 @@ def check_conformance(history: list[tuple[str, str, Verdict]], script: list[dict
     errors: list[str] = []
     events = [(i, v) for i, (_, _, v) in enumerate(history) if v.msg is not None]
     cursor = 0
-    expected_counts = {k: 0 for k in COUNTED}
+    expected_counts = dict.fromkeys(COUNTED, 0)
     for sno, step in enumerate(script, 1):
         ref = None
         for e in expectations(step, cast, policy):
@@ -152,7 +152,7 @@ def check_conformance(history: list[tuple[str, str, Verdict]], script: list[dict
                               f"after event {cursor}, found {found}")
                 return errors
             cursor = j
-    actual = {k: 0 for k in COUNTED}
+    actual = dict.fromkeys(COUNTED, 0)
     for _, v in events:
         k = (v.msg.verb, v.msg.noun)
         if k in actual and v.ok:

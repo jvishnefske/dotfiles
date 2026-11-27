@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-import hashlib
 import json
 import os
 import secrets
@@ -21,6 +20,7 @@ from multiprocessing.connection import Connection, wait
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec
 
+import aiofile
 import grammar as g
 from hsm import HsmError, Token
 from ircnet import IrcClient
@@ -179,8 +179,7 @@ class Agent:
             self.inbox.put_nowait({"op": "stop"})
 
     async def start(self, port: int) -> None:
-        with open(os.path.join(self.pki, "root.der"), "rb") as f:
-            root_der = f.read()
+        root_der = await aiofile.read_bytes(os.path.join(self.pki, "root.der"))
         root = x509.load_der_x509_certificate(root_der)
         self.root_pub = root.public_key()
         roster = load_roster(self.pki, self.root_pub)
@@ -257,8 +256,7 @@ class Agent:
             await self.say("approves", "revocation", op["ref"], for_=r.subject, serial=str(r.serial))
         elif kind == "review_release":
             rel = self.ledger.releases[op["ref"]]
-            with open(op["artifact"], "rb") as f:
-                mine = hashlib.sha256(f.read()).hexdigest()
+            mine = await aiofile.sha256_hex(op["artifact"])
             if mine == rel.digest:
                 await self.say("approves", "release", op["ref"], digest=rel.digest)
             else:
@@ -432,8 +430,7 @@ class Agent:
             if not path.startswith(rel_root + os.sep):
                 raise PermissionError("artifact must live under the releases directory")
             version = str(params["version"])
-            with open(path, "rb") as f:
-                digest = hashlib.sha256(f.read()).hexdigest()
+            digest = await aiofile.sha256_hex(path)
             ref = self.next_ref("rel")
             await self.say("submits", "release", ref, article="a", version=version, digest=digest)
             await self.wait_until(lambda: ref in self.ledger.releases)

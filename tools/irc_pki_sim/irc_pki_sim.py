@@ -33,6 +33,7 @@ if HERE not in sys.path:
 from cryptography import x509  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
 
+import aiofile  # noqa: E402
 import grammar as g  # noqa: E402
 from actors import ROOT_CN, ROOT_OU, agent_main, replica_main  # noqa: E402
 from ircnet import IrcClient, IrcServer  # noqa: E402
@@ -65,8 +66,7 @@ class Auditor:
         self.task: asyncio.Task | None = None
 
     async def start(self, port: int) -> None:
-        with open(os.path.join(self.pki, "root.der"), "rb") as f:
-            root_der = f.read()
+        root_der = await aiofile.read_bytes(os.path.join(self.pki, "root.der"))
         roster = load_roster(self.pki, x509.load_der_x509_certificate(root_der).public_key())
         self.ledger = Ledger(self.policy, roster, root_der, file_loader(self.pki))
         await self.client.connect("127.0.0.1", port)
@@ -179,8 +179,7 @@ class Simulation:
         root_der = build_cert(serial=1, subject_cn=ROOT_CN, subject_ou=ROOT_OU, subject_spki=root_spki,
                               issuer_cn=ROOT_CN, issuer_ou=ROOT_OU, issuer_spki=root_spki,
                               signer=sign, is_ca=True, days=3650)
-        with open(os.path.join(self.pki, "root.der"), "wb") as f:
-            f.write(root_der)
+        await aiofile.write_bytes(os.path.join(self.pki, "root.der"), root_der)
         roles = self.cast.roles()
         ceremony = [self.cast.ca, *self.cast.custodians, self.cast.releasebot]
         serials = {}
@@ -188,18 +187,16 @@ class Simulation:
             der = build_cert(serial=serial, subject_cn=name, subject_ou=roles[name],
                              subject_spki=bytes.fromhex(pubs[name]["spki"]), issuer_cn=ROOT_CN,
                              issuer_ou=ROOT_OU, issuer_spki=root_spki, signer=sign, is_ca=False)
-            with open(os.path.join(self.pki, "certs", f"{serial}.der"), "wb") as f:
-                f.write(der)
+            await aiofile.write_bytes(os.path.join(self.pki, "certs", f"{serial}.der"), der)
             serials[name] = serial
         roster = {"version": 1, "roles": roles, "ceremony_serials": serials,
                   "policy": self.policy.__dict__, "hsm_replicas": self.n_hsm,
                   "cast": {k: list(v) if isinstance(v, tuple) else v
                            for k, v in self.cast.__dict__.items()}}
         raw = json.dumps(roster, indent=2, sort_keys=True).encode()
-        with open(os.path.join(self.pki, "roster.json"), "wb") as f:
-            f.write(raw)
-        with open(os.path.join(self.pki, "roster.sig"), "w") as f:
-            f.write(sign(sha256(b"ircpki-roster/1\n" + raw)).hex())
+        await aiofile.write_bytes(os.path.join(self.pki, "roster.json"), raw)
+        await aiofile.write_bytes(os.path.join(self.pki, "roster.sig"),
+                                  sign(sha256(b"ircpki-roster/1\n" + raw)).hex().encode())
 
         secret = new_ca_secret()
         d = root.private_numbers().private_value
@@ -246,11 +243,9 @@ class Simulation:
             os.makedirs(os.path.join(art_dir, "src"), exist_ok=True)
             honest = os.urandom(4096) + st["version"].encode()
             src = os.path.join(art_dir, "src", f"app-{st['version']}.tar")
-            with open(src, "wb") as f:
-                f.write(honest)
+            await aiofile.write_bytes(src, honest)
             art = os.path.join(art_dir, f"app-{st['version']}.tar")
-            with open(art, "wb") as f:
-                f.write(honest + (b"\nbackdoor()\n" if st.get("tamper") else b""))
+            await aiofile.write_bytes(art, honest + (b"\nbackdoor()\n" if st.get("tamper") else b""))
             res = await asyncio.to_thread(rpc_call, self.rpc_port, "release.submit",
                                           {"version": st["version"], "artifact": art})
             if "error" in res:
@@ -305,8 +300,8 @@ class Simulation:
         if os.path.exists(self.run_dir):
             shutil.rmtree(self.run_dir)
         os.makedirs(self.run_dir)
-        with open(os.path.join(self.run_dir, "script.json"), "w") as f:
-            json.dump(self.script, f, indent=2)
+        await aiofile.write_bytes(os.path.join(self.run_dir, "script.json"),
+                                  json.dumps(self.script, indent=2).encode())
         self.server = IrcServer(os.path.join(self.run_dir, "irc", "server.log"))
         port = await self.server.start()
         print(f"irc server on 127.0.0.1:{port}, log {self.server.log.path}")
