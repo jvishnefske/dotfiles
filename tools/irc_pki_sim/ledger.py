@@ -34,6 +34,7 @@ from typing import Callable
 from cryptography import x509
 
 import grammar as g
+from safepath import inside
 from pkicrypto import (cert_cn_ou, compress, decompress, message_digest, sha256,
                        verify_issued_by, verify_raw)
 
@@ -526,10 +527,11 @@ class LogEntry:
     hash: str
 
 
-def read_log(path: str) -> tuple[list[LogEntry], list[str]]:
+def read_log(run_dir: str) -> tuple[list[LogEntry], list[str]]:
+    """Read and chain-check <run_dir>/irc/server.log."""
     entries, errors = [], []
     prev, last_ts = GENESIS, ""
-    with open(path, encoding="utf-8") as f:
+    with open(inside(run_dir, "irc", "server.log"), encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
             parts = line.rstrip("\n").split("\t")
             if len(parts) != 7:
@@ -552,9 +554,9 @@ def read_log(path: str) -> tuple[list[LogEntry], list[str]]:
 
 def load_roster(pki_dir: str, root_pub) -> dict:
     """roster.json is signed by the root key at the ceremony (roster.sig)."""
-    with open(os.path.join(pki_dir, "roster.json"), "rb") as f:
+    with open(inside(pki_dir, "roster.json"), "rb") as f:
         raw = f.read()
-    with open(os.path.join(pki_dir, "roster.sig")) as f:
+    with open(inside(pki_dir, "roster.sig")) as f:
         sig = bytes.fromhex(f.read().strip())
     if not verify_raw(root_pub, sha256(b"ircpki-roster/1\n" + raw), sig):
         raise ValueError("roster signature does not verify against the root")
@@ -563,8 +565,9 @@ def load_roster(pki_dir: str, root_pub) -> dict:
 
 def file_loader(pki_dir: str) -> Loader:
     def load(rel: str) -> bytes | None:
-        p = os.path.join(pki_dir, rel)
-        if not os.path.realpath(p).startswith(os.path.realpath(pki_dir) + os.sep):
+        try:
+            p = inside(pki_dir, rel)
+        except ValueError:
             return None
         try:
             with open(p, "rb") as f:

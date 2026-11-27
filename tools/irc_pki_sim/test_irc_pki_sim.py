@@ -375,7 +375,7 @@ class LogTest(unittest.TestCase):
     def test_chain_and_tamper(self):
         with tempfile.TemporaryDirectory() as d:
             p = self.write(d)
-            entries, errs = read_log(p)
+            entries, errs = read_log(d)
             self.assertEqual((len(entries), errs), (5, []))
             self.assertEqual(entries[0].hash, chain(GENESIS, "\t".join(
                 ["000001", entries[0].ts, "PRIVMSG", "dev1", "#pki", "line 0"])))
@@ -384,7 +384,7 @@ class LogTest(unittest.TestCase):
                            lambda L: [L[1], L[0]] + L[2:],                # reorder
                            lambda L: L[:2] + [L[2].replace("line 2", "line X")] + L[3:]):  # edit
                 open(p, "w").writelines(mutate(list(lines)))
-                self.assertTrue(read_log(p)[1])
+                self.assertTrue(read_log(d)[1])
 
     def test_rejects_control_characters(self):
         with tempfile.TemporaryDirectory() as d:
@@ -392,6 +392,42 @@ class LogTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 w.append("PRIVMSG", "a", "#pki", "x\ty")
             w.close()
+
+
+class SafePathTest(unittest.TestCase):
+    def test_inside_refuses_escapes(self):
+        import safepath
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(safepath.inside(d, "pki", "root.der"),
+                             os.path.join(os.path.realpath(d), "pki", "root.der"))
+            for bad in (("..", "etc", "passwd"), ("/etc/passwd",), ("pki", "..", "..", "x")):
+                with self.assertRaises(ValueError):
+                    safepath.inside(d, *bad)
+            os.symlink("/etc", os.path.join(d, "link"))
+            with self.assertRaises(ValueError):
+                safepath.inside(d, "link", "passwd")
+            with self.assertRaises(ValueError):
+                safepath.run_dir(d)                         # not a finished run
+            with self.assertRaises(ValueError):
+                safepath.inside(d, "a\0b")
+
+    def test_kernel_port_method(self):
+        import safepath
+        with tempfile.TemporaryDirectory() as d:
+            k = os.path.join(d, "vmlinuz-6.8.0-1-generic")
+            open(k, "w").close()
+            self.assertEqual(safepath.kernel(k), os.path.realpath(k))
+            for bad in (os.path.join(d, "-append"), "/etc/passwd", os.path.join(d, "vmlinuz-x;rm")):
+                with self.assertRaises(ValueError):
+                    safepath.kernel(bad)
+        self.assertEqual(safepath.port("8080"), 8080)
+        for bad in ("0", "65536", "-1"):
+            with self.assertRaises(ValueError):
+                safepath.port(bad)
+        self.assertEqual(safepath.rpc_method("release.status"), "release.status")
+        for bad in ("../x", "release.status?x=1", "a.b.c", "rpc"):
+            with self.assertRaises(ValueError):
+                safepath.rpc_method(bad)
 
 
 # ================================================================ end to end

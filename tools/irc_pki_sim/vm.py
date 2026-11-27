@@ -14,11 +14,14 @@ import glob
 import gzip
 import hashlib
 import io
+import json
 import lzma
 import os
 import re
 import shutil
 import subprocess
+
+import safepath
 
 INIT = r"""#!/bin/busybox sh
 /bin/busybox --install -s /bin
@@ -80,19 +83,23 @@ def _cpio_newc(entries: list[tuple[str, int, bytes]]) -> bytes:
 
 def _kernel_release(kernel: str) -> str | None:
     m = re.search(r"vmlinuz-(.+)$", os.path.realpath(kernel))
-    return m.group(1) if m else None
+    if m and safepath.RELEASE_RE.match(m.group(1)):
+        return m.group(1)
+    return None
 
 
 def _isofs_module(release: str | None) -> bytes | None:
     """iso9660 is a module on most distro kernels; returns it decompressed,
     or None if the kernel has it built in."""
     if release:
-        cfg = f"/boot/config-{release}"
+        cfg = safepath.inside("/boot", f"config-{release}")
         if os.path.exists(cfg) and "CONFIG_ISO9660_FS=y" in open(cfg).read():
             return None
     pattern = f"/lib/modules/{release or '*'}/kernel/fs/isofs/isofs.ko*"
-    for path in sorted(glob.glob(pattern)):
-        raw = open(path, "rb").read()
+    for found in sorted(glob.glob(pattern)):
+        path = safepath.inside("/lib/modules", os.path.relpath(found, "/lib/modules"))
+        with open(path, "rb") as f:
+            raw = f.read()
         if path.endswith(".ko"):
             return raw
         if path.endswith(".xz"):
@@ -138,28 +145,32 @@ def build_initramfs(path: str, kernel: str) -> None:
 
 def build_iso(run_dir: str, iso_path: str, report: dict) -> list[str]:
     """Collects pki/, the server log, the script and the verifier report."""
-    if not shutil.which("xorriso"):
+    xorriso = shutil.which("xorriso")
+    if not xorriso:
         raise VmUnavailable("xorriso not found")
-    stage = os.path.join(run_dir, "vm", "iso")
+    run_dir = safepath.run_dir(run_dir)
+    iso_path = safepath.inside(run_dir, os.path.basename(iso_path))
+    stage = safepath.inside(run_dir, "vm", "iso")
     shutil.rmtree(stage, ignore_errors=True)
     os.makedirs(stage)
     for sub in ("pki", "irc"):
-        shutil.copytree(os.path.join(run_dir, sub), os.path.join(stage, sub))
-    shutil.copy(os.path.join(run_dir, "script.json"), stage)
-    with open(os.path.join(stage, "verify-report.json"), "w") as f:
-        import json
+        # symlinks=True: copy links as links instead of following them out of the run
+        shutil.copytree(safepath.inside(run_dir, sub), safepath.inside(stage, sub), symlinks=True)
+    shutil.copy(safepath.inside(run_dir, "script.json"), stage)
+    with open(safepath.inside(stage, "verify-report.json"), "w") as f:
         json.dump(report, f, indent=2, sort_keys=True)
-    with open(os.path.join(stage, "chain.sh"), "w") as f:
+    with open(safepath.inside(stage, "chain.sh"), "w") as f:
         f.write(CHAIN_SH)
     files = []
     for root, _, names in os.walk(stage):
         for n in sorted(names):
             files.append(os.path.relpath(os.path.join(root, n), stage))
-    with open(os.path.join(stage, "MANIFEST.sha256"), "w") as f:
+    with open(safepath.inside(stage, "MANIFEST.sha256"), "w") as f:
         for rel in sorted(files):
-            with open(os.path.join(stage, rel), "rb") as g:
+            with open(safepath.inside(stage, rel), "rb") as g:
                 f.write(f"{hashlib.sha256(g.read()).hexdigest()}  {rel}\n")
-    subprocess.run(["xorriso", "-as", "mkisofs", "-quiet", "-r", "-V", "IRCPKI_CEREMONY",
+    _absolute(iso_path, stage)
+    subprocess.run([xorriso, "-as", "mkisofs", "-quiet", "-r", "-V", "IRCPKI_CEREMONY",
                     "-o", iso_path, stage], check=True, capture_output=True)
     return sorted(files)
 
@@ -168,25 +179,45 @@ def run_vm(iso: str, initrd: str, kernel: str, timeout: int = 180) -> str:
     qemu = shutil.which("qemu-system-x86_64")
     if not qemu:
         raise VmUnavailable("qemu-system-x86_64 not found")
+    kernel = safepath.kernel(kernel)
+    _absolute(iso, initrd, kernel)
     accel = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
     cmd = [qemu, "-machine", f"pc,accel={accel}", "-m", "256", "-nographic", "-no-reboot",
            "-nic", "none", "-kernel", kernel, "-initrd", initrd,
-           "-append", "console=ttyS0 quiet panic=-1", "-cdrom", iso]
+           "-append", "console=ttyS0 quiet panic=-1",
+           "-drive", f"file={_qemu_opt(iso)},media=cdrom,readonly=on,format=raw"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return r.stdout + r.stderr
 
 
+def _absolute(*paths: str) -> None:
+    """Absolute paths start with '/', so no tool can read one as an option."""
+    for p in paths:
+        if not os.path.isabs(p):
+            raise ValueError(f"{p!r} is not absolute")
+
+
+def _qemu_opt(p: str) -> str:
+    """QEMU -drive values are comma-separated; a literal comma is doubled."""
+    return p.replace(",", ",,")
+
+
 def verify_in_vm(run_dir: str, report: dict, kernel: str = "/boot/vmlinuz") -> dict:
+    run_dir = safepath.run_dir(run_dir)
+    try:
+        kernel = safepath.kernel(kernel)
+    except ValueError as e:
+        raise VmUnavailable(str(e)) from None
     if not os.access(kernel, os.R_OK):
         raise VmUnavailable(f"kernel {kernel} not readable")
-    vm_dir = os.path.join(run_dir, "vm")
+    vm_dir = safepath.inside(run_dir, "vm")
     os.makedirs(vm_dir, exist_ok=True)
-    iso = os.path.join(run_dir, "ceremony.iso")
-    initrd = os.path.join(vm_dir, "initrd.gz")
+    iso = safepath.inside(run_dir, "ceremony.iso")
+    initrd = safepath.inside(vm_dir, "initrd.gz")
     files = build_iso(run_dir, iso, report)
     build_initramfs(initrd, kernel)
     out = run_vm(iso, initrd, kernel)
-    with open(os.path.join(vm_dir, "console.log"), "w") as f:
+    with open(safepath.inside(vm_dir, "console.log"), "w") as f:
         f.write(out)
     m_ok = re.search(r"VM_MANIFEST_OK (\d+)", out)
     c_ok = re.search(r"VM_CHAIN_OK (\d+) ([0-9a-f]{64})", out)

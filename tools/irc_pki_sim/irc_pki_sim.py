@@ -41,9 +41,12 @@ from pkicrypto import (CURVE, build_cert, compress, new_ca_secret, pin_from_secr
                        sha256, shamir_split, software_signer, spki_der)
 from scenario import Cast, default_script  # noqa: E402
 from verify import verify_run  # noqa: E402
+import safepath  # noqa: E402
 
 
 def rpc_call(port: int, method: str, params: dict | None = None, timeout: float = 30) -> dict:
+    """Loopback only: the host is fixed, the port and method are validated."""
+    port, method = safepath.port(port), safepath.rpc_method(method)
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}).encode()
     req = urllib.request.Request(f"http://127.0.0.1:{port}/rpc", data=body,
                                  headers={"Content-Type": "application/json"})
@@ -399,7 +402,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="run the full ceremony and verify it")
-    r.add_argument("--dir", default="run")
+    r.add_argument("--dir", default="run", type=safepath.argtype(lambda p: safepath.run_dir(p, must_exist=False)))
     r.add_argument("--m", type=int, default=3, help="custodian shares needed to unlock the CA")
     r.add_argument("--n", type=int, default=3, help="custodians (shares issued)")
     r.add_argument("--devs", type=int, default=5)
@@ -408,17 +411,17 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--sm-approvals", type=int, default=2,
                    help="custodian approvals for a security-manager cert or revocation")
     r.add_argument("--vm", action="store_true", help="also re-verify the archive inside QEMU")
-    r.add_argument("--kernel", default="/boot/vmlinuz")
+    r.add_argument("--kernel", default="/boot/vmlinuz")  # validated when --vm runs
     r.add_argument("--serve", type=float, default=0, help="keep the RPC up N seconds after the script")
     v = sub.add_parser("verify", help="verify a finished run directory offline")
-    v.add_argument("dir")
+    v.add_argument("dir", type=safepath.argtype(safepath.run_dir))
     v.add_argument("--root-fp")
     q = sub.add_parser("vm", help="archive a run to ISO and verify it inside QEMU")
-    q.add_argument("dir")
-    q.add_argument("--kernel", default="/boot/vmlinuz")
+    q.add_argument("dir", type=safepath.argtype(safepath.run_dir))
+    q.add_argument("--kernel", default="/boot/vmlinuz", type=safepath.argtype(safepath.kernel))
     c = sub.add_parser("rpc", help="call the release-approval JSON-RPC")
-    c.add_argument("port", type=int)
-    c.add_argument("method")
+    c.add_argument("port", type=safepath.argtype(safepath.port))
+    c.add_argument("method", type=safepath.argtype(safepath.rpc_method))
     c.add_argument("params", nargs="?", default="{}")
     sub.add_parser("grammar", help="print the grammar and its LL(1) table size")
     a = ap.parse_args(argv)

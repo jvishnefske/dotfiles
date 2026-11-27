@@ -18,19 +18,21 @@ import os
 
 from cryptography import x509
 
+import safepath
+from safepath import inside
 from ledger import Ledger, Policy, file_loader, load_roster, read_log
 from pkicrypto import sha256
 from scenario import Cast, check_conformance
 
 
 def verify_run(run_dir: str, root_fp: str | None = None) -> dict:
-    pki = os.path.join(run_dir, "pki")
+    run_dir = safepath.run_dir(run_dir)
+    pki = inside(run_dir, "pki")
     errors: list[str] = []
-    log_path = os.path.join(run_dir, "irc", "server.log")
-    entries, chain_errors = read_log(log_path)
+    entries, chain_errors = read_log(run_dir)
     errors += [f"log: {e}" for e in chain_errors]
 
-    with open(os.path.join(pki, "root.der"), "rb") as f:
+    with open(inside(pki, "root.der"), "rb") as f:
         root_der = f.read()
     fp = sha256(root_der).hex()
     if root_fp and fp != root_fp.lower():
@@ -55,10 +57,10 @@ def verify_run(run_dir: str, root_fp: str | None = None) -> dict:
             rejected.append(f"line {e.seq}: {e.nick}: {v.reason}")
 
     known = {f"{s}.der" for s in ledger.certs}
-    for fn in sorted(os.listdir(os.path.join(pki, "certs"))):
+    for fn in sorted(os.listdir(inside(pki, "certs"))):
         if fn not in known:
             errors.append(f"pki/certs/{fn} was never issued in the log")
-    crl_dir = os.path.join(pki, "crl")
+    crl_dir = inside(pki, "crl")
     accepted_revocations = {v.msg.ref for _, _, v in ledger.history
                             if v.ok and (v.msg.verb, v.msg.noun) == ("issues", "revocation")}
     if os.path.isdir(crl_dir):
@@ -66,7 +68,7 @@ def verify_run(run_dir: str, root_fp: str | None = None) -> dict:
             if fn.removesuffix(".der") not in accepted_revocations:
                 errors.append(f"pki/crl/{fn} was never issued in the log")
 
-    script_path = os.path.join(run_dir, "script.json")
+    script_path = inside(run_dir, "script.json")
     script = []
     if os.path.exists(script_path):
         with open(script_path) as f:
