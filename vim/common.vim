@@ -86,7 +86,7 @@ let g:coc_global_extensions = [
 " TAB: confirm popup selection -> expand/jump snippet -> indent -> refresh
 inoremap <silent><expr> <TAB>
       \ coc#pum#visible() ? coc#_select_confirm() :
-      \ coc#expandableOrJump() ?
+      \ coc#expandableOrJumpable() ?
       \ "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" :
       \ <SID>check_backspace() ? "\<TAB>" :
       \ coc#refresh()
