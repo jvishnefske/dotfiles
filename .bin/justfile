@@ -15,6 +15,7 @@ dotfiles_alias := 'alias dotfiles="git --git-dir=$HOME/.dotfiles --work-tree=$HO
 airprompt_src := justfile_directory() + "/airprompt"
 
 import 'recipes/coc.just'
+import 'recipes/cpp-docs.just'
 
 default: install
 

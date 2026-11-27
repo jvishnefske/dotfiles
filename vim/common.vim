@@ -112,6 +112,19 @@ nmap <silent> gi <Plug>(coc-implementation)
 nmap <silent> gr <Plug>(coc-references)
 nnoremap <silent> K :call CocActionAsync('doHover')<CR>
 
+" C/C++: K is clangd hover; gK opens the cppreference page for the word under
+" the cursor via cppman (`just cppman` in ~/.bin installs it).
+function! s:cpp_docs() abort
+  if executable('cppman')
+    setlocal keywordprg=cppman
+    nnoremap <buffer> gK K
+  endif
+endfunction
+augroup cpp_docs
+  autocmd!
+  autocmd FileType c,cpp call s:cpp_docs()
+augroup END
+
 " Rename / code action / format
 nmap <leader>rn <Plug>(coc-rename)
 nmap <leader>ca <Plug>(coc-codeaction-cursor)
