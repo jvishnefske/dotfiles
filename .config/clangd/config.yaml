@@ -1,0 +1,4 @@
+# User-level clangd config (project .clangd files override this).
+# Render /// and /** */ Doxygen comments (@param, @return, @brief) in hover.
+Documentation:
+  CommentFormat: Doxygen

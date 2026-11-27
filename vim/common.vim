@@ -3,6 +3,16 @@
 
 source ~/.vim/core.vim
 
+" coc.nvim needs global `crypto` (Node 19+). `just coc-node` (in ~/.bin) writes the
+" path of a suitable node to ~/.vim/coc-node-path.
+let s:coc_node_file = expand('~/.vim/coc-node-path')
+if filereadable(s:coc_node_file)
+  let s:coc_node = trim(join(readfile(s:coc_node_file, '', 1), ''))
+  if executable(s:coc_node)
+    let g:coc_node_path = s:coc_node
+  endif
+endif
+
 " ---- Plugins (vim-plug) ---------------------------------------------------
 call plug#begin('~/.vim/plugged')
 Plug 'morhetz/gruvbox'
@@ -57,7 +67,10 @@ function! s:NodeMajor(node) abort
   return str2nr(matchstr(system(a:node . ' --version'), '^v\zs\d\+'))
 endfunction
 
-let g:coc_node_path = s:CocNodePath()
+" A path recorded by `just coc-node` (read above) wins; otherwise auto-detect.
+if !exists("g:coc_node_path")
+  let g:coc_node_path = s:CocNodePath()
+endif
 
 let g:coc_global_extensions = [
       \ 'coc-rust-analyzer',
@@ -76,7 +89,7 @@ let g:coc_global_extensions = [
 " TAB: confirm popup selection -> expand/jump snippet -> indent -> refresh
 inoremap <silent><expr> <TAB>
       \ coc#pum#visible() ? coc#_select_confirm() :
-      \ coc#expandableOrJump() ?
+      \ coc#expandableOrJumpable() ?
       \ "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" :
       \ <SID>check_backspace() ? "\<TAB>" :
       \ coc#refresh()
@@ -101,6 +114,19 @@ nmap <silent> gy <Plug>(coc-type-definition)
 nmap <silent> gi <Plug>(coc-implementation)
 nmap <silent> gr <Plug>(coc-references)
 nnoremap <silent> K :call CocActionAsync('doHover')<CR>
+
+" C/C++: K is clangd hover; gK opens the cppreference page for the word under
+" the cursor via cppman (`just cppman` in ~/.bin installs it).
+function! s:cpp_docs() abort
+  if executable('cppman')
+    setlocal keywordprg=cppman
+    nnoremap <buffer> gK K
+  endif
+endfunction
+augroup cpp_docs
+  autocmd!
+  autocmd FileType c,cpp call s:cpp_docs()
+augroup END
 
 " Rename / code action / format
 nmap <leader>rn <Plug>(coc-rename)
