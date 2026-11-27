@@ -1,0 +1,5 @@
+cryptography>=42
+asn1crypto>=1.5
+python-pkcs11>=0.7
+zstandard>=0.22  # only for --vm on kernels with zstd modules
+pytest>=8
