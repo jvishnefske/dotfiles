@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # Bare repository dotfiles management
@@ -101,7 +101,12 @@ install_uv() {
             # shellcheck source=/dev/null
             source "$HOME/.cargo/env"
         fi
-        export PATH="$HOME/.cargo/bin:$PATH"
+        # uv installs to ~/.local/bin (or $CARGO_HOME/bin when that is set).
+        if [ -f "$HOME/.local/bin/env" ]; then
+            # shellcheck source=/dev/null
+            source "$HOME/.local/bin/env"
+        fi
+        export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
         if command -v uv &>/dev/null; then
             echo "uv installed successfully."

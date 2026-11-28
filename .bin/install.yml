@@ -10,6 +10,21 @@
     python_pkg_manager: "{{ pkg_manager | default('pdm') }}"
 
   tasks:
+    # bash is not always at /bin/bash (NixOS, some BSDs), so resolve it from
+    # PATH the way the installer shebangs do (#!/usr/bin/env bash) rather than
+    # hardcoding the path.
+    - name: Locate the bash interpreter
+      ansible.builtin.command: /usr/bin/env bash -c "command -v bash"
+      register: bash_which
+      changed_when: false
+      check_mode: false
+      tags: always
+
+    - name: Use the resolved bash for shell tasks
+      ansible.builtin.set_fact:
+        bash_exe: "{{ bash_which.stdout | trim }}"
+      tags: always
+
     - name: Check if rustup is installed
       ansible.builtin.command: which rustup
       register: rustup_check
@@ -23,7 +38,7 @@
           set -o pipefail
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source {{ home_dir }}/.cargo/env
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       changed_when: true
       when: rustup_check.rc != 0
       tags: rust
@@ -54,7 +69,7 @@
           else
             curl -sSL https://pdm-project.org/install-pdm.py | python3 -
           fi
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       changed_when: true
       when: python_pkg_manager == "pdm" and pdm_check.rc != 0 and ansible_facts['system'] in ["Linux", "Darwin"]
       tags: python
@@ -79,7 +94,7 @@
         cmd: |
           set -o pipefail
           curl -LsSf https://astral.sh/uv/install.sh | sh
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       changed_when: true
       when: python_pkg_manager == "uv" and uv_check.rc != 0
       tags: python
@@ -107,7 +122,7 @@
         sudo apt update
         sudo apt install gh -y
       args:
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       changed_when: true
       when: gh_check.rc != 0 and ansible_facts['os_family'] == "Debian"
       tags: github
@@ -158,7 +173,7 @@
         sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
         sudo dnf install gh -y
       args:
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       changed_when: true
       when: gh_check.rc != 0 and ansible_facts['os_family'] == "RedHat"
       tags: github
@@ -177,7 +192,7 @@
         cmd: |
           set -o pipefail
           go version | awk '{print $3}' | sed 's/^go//'
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       register: go_version_check
       when: go_check.rc == 0
       changed_when: false
@@ -310,7 +325,7 @@
         cmd: |
           set -o pipefail
           command -v vim && vim --version | head -1 | grep -q '^VIM'
-        executable: /bin/bash
+        executable: "{{ bash_exe }}"
       register: vim_check
       failed_when: false
       changed_when: false
